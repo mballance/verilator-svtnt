@@ -18,6 +18,7 @@
  *
  *************************************************************************/
 
+
 %option interactive c++ stack noyywrap
 %{
 /* %option nodefault */
