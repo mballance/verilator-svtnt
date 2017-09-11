@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -529,7 +529,7 @@ double V3Graph::orderDFSIterate(V3GraphVertex* vertexp) {
     // Compute fanouts of each node
     // If forward edge, don't double count that fanout
     if (vertexp->user() == 2) return vertexp->fanout();  // Already processed it
-    if (vertexp->user() == 1) v3fatalSrc("Loop found, backward edges should be dead\n");
+    if (vertexp->user() == 1) v3fatalSrc("Loop found, backward edges should be dead");
     vertexp->user(1);
     double fanout = 0;
     for (V3GraphEdge* edgep = vertexp->outBeginp(); edgep; edgep = edgep->outNextp()) {

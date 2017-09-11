@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -286,7 +286,7 @@ class TristatePinVisitor : public TristateBaseVisitor {
     TristateGraph& m_tgraph;
     bool m_lvalue;	// Flip to be an LVALUE
     // VISITORS
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	if (m_lvalue && !nodep->lvalue()) {
 	    UINFO(9,"  Flip-to-LValue "<<nodep<<endl);
 	    nodep->lvalue(true);
@@ -298,12 +298,12 @@ class TristatePinVisitor : public TristateBaseVisitor {
 	    m_tgraph.setTristate(nodep->varp());
 	}
     }
-    virtual void visit(AstArraySel* nodep, AstNUser*) {
+    virtual void visit(AstArraySel* nodep) {
 	// Doesn't work because we'd set lvalue on the array index's var
 	if (m_lvalue) nodep->v3fatalSrc("ArraySel conversion to output, under tristate node");
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 public:
@@ -373,7 +373,7 @@ class TristateVisitor : public TristateBaseVisitor {
 	    AstNode* enp = new AstConst(nodep->fileline(), num);
 	    nodep->user1p(enp);
 	}
-	return nodep->user1p()->castNode();
+	return nodep->user1p();
     }
 
     AstVar* getCreateEnVarp(AstVar* invarp) {
@@ -388,7 +388,7 @@ class TristateVisitor : public TristateBaseVisitor {
 	    else m_modp->addStmtp(newp);
 	    invarp->user1p(newp); // find envar given invarp
 	}
-	return invarp->user1p()->castNode()->castVar();
+	return invarp->user1p()->castVar();
     }
 
     AstVar* getCreateOutVarp(AstVar* invarp) {
@@ -403,7 +403,7 @@ class TristateVisitor : public TristateBaseVisitor {
 	    else m_modp->addStmtp(newp);
 	    invarp->user4p(newp);  // find outvar given invarp
 	}
-	return invarp->user4p()->castNode()->castVar();
+	return invarp->user4p()->castVar();
     }
 
     AstVar* getCreateUnconnVarp(AstNode* fromp, AstNodeDType* dtypep) {
@@ -541,7 +541,7 @@ class TristateVisitor : public TristateBaseVisitor {
 		outvarp->user3p(invarp->user3p()); // AstPull* propagation
 		if (invarp->user3p()) UINFO(9, "propagate pull to "<<outvarp<<endl);
 	    } else if (invarp->user1p()) {
-		envarp = invarp->user1p()->castNode()->castVar();  // From CASEEQ, foo === 1'bz
+		envarp = invarp->user1p()->castVar();  // From CASEEQ, foo === 1'bz
 	    }
 
 	    AstNode* orp = NULL;
@@ -635,7 +635,7 @@ class TristateVisitor : public TristateBaseVisitor {
     }
 
     // VISITORS
-    virtual void visit(AstConst* nodep, AstNUser*) {
+    virtual void visit(AstConst* nodep) {
 	UINFO(9,dbgState()<<nodep<<endl);
 	if (m_graphing) {
 	    if (!m_alhs && nodep->num().hasZ()) {
@@ -668,7 +668,7 @@ class TristateVisitor : public TristateBaseVisitor {
 	}
     }
 
-    virtual void visit(AstCond* nodep, AstNUser*) {
+    virtual void visit(AstCond* nodep) {
 	if (m_graphing) {
 	    nodep->iterateChildren(*this);
 	    if (m_alhs) {
@@ -707,7 +707,7 @@ class TristateVisitor : public TristateBaseVisitor {
 	}
     }
 
-    virtual void visit(AstSel* nodep, AstNUser*) {
+    virtual void visit(AstSel* nodep) {
 	if (m_graphing) {
 	    nodep->iterateChildren(*this);
 	    if (m_alhs) {
@@ -720,7 +720,7 @@ class TristateVisitor : public TristateBaseVisitor {
 		UINFO(9,dbgState()<<nodep<<endl);
 		if (nodep->user1p()) {
 		    // Form a "deposit" instruction.  Would be nicer if we made this a new AST type
-		    AstNode* newp = newEnableDeposit(nodep, nodep->user1p()->castNode());
+		    AstNode* newp = newEnableDeposit(nodep, nodep->user1p());
 		    nodep->fromp()->user1p(newp);  // Push to varref (etc)
 		    if (debug()>=9) newp->dumpTree(cout,"-assign-sel; ");
 		    m_tgraph.didProcess(nodep);
@@ -744,7 +744,7 @@ class TristateVisitor : public TristateBaseVisitor {
 	}
     }
 
-    virtual void visit(AstConcat* nodep, AstNUser*) {
+    virtual void visit(AstConcat* nodep) {
 	if (m_graphing) {
 	    nodep->iterateChildren(*this);
 	    if (m_alhs) {
@@ -760,7 +760,7 @@ class TristateVisitor : public TristateBaseVisitor {
 		UINFO(9,dbgState()<<nodep<<endl);
 		if (nodep->user1p()) {
 		    // Each half of the concat gets a select of the enable expression
-		    AstNode* enp = nodep->user1p()->castNode();
+		    AstNode* enp = nodep->user1p();
 		    nodep->user1p(NULL);
 		    nodep->lhsp()->user1p(new AstSel(nodep->fileline(),
 						     enp->cloneTree(true),
@@ -793,7 +793,7 @@ class TristateVisitor : public TristateBaseVisitor {
 	}
     }
 
-    virtual void visit(AstBufIf1* nodep, AstNUser*) {
+    virtual void visit(AstBufIf1* nodep) {
 	// For BufIf1, the enable is the LHS expression
 	nodep->iterateChildren(*this);
 	UINFO(9,dbgState()<<nodep<<endl);
@@ -807,7 +807,7 @@ class TristateVisitor : public TristateBaseVisitor {
 	    AstNode* expr1p = nodep->lhsp()->unlinkFrBack();
 	    AstNode* expr2p = nodep->rhsp()->unlinkFrBack();
 	    AstNode* enp;
-	    if (AstNode* en2p = expr2p->user1p()->castNode()) {
+	    if (AstNode* en2p = expr2p->user1p()) {
 		enp = new AstAnd(nodep->fileline(), expr1p, en2p);
 	    } else {
 		enp = expr1p;
@@ -873,10 +873,10 @@ class TristateVisitor : public TristateBaseVisitor {
 	    expr2p->user1p(NULL);
 	}
     }
-    virtual void visit(AstAnd* nodep, AstNUser*) {
+    virtual void visit(AstAnd* nodep) {
 	visitAndOr(nodep,true);
     }
-    virtual void visit(AstOr* nodep, AstNUser*) {
+    virtual void visit(AstOr* nodep) {
 	visitAndOr(nodep,false);
     }
 
@@ -913,10 +913,10 @@ class TristateVisitor : public TristateBaseVisitor {
 	    m_alhs = false;
 	}
     }
-    virtual void visit(AstAssignW* nodep, AstNUser*) {
+    virtual void visit(AstAssignW* nodep) {
 	visitAssign(nodep);
     }
-    virtual void visit(AstAssign* nodep, AstNUser*) {
+    virtual void visit(AstAssign* nodep) {
 	visitAssign(nodep);
     }
 
@@ -937,7 +937,7 @@ class TristateVisitor : public TristateBaseVisitor {
 		// 3'b1z0 -> ((3'b101 == in__en) && (3'b100 == in))
 		varrefp->unlinkFrBack();
 		FileLine* fl = nodep->fileline();
-		V3Number oneIfEn = constp->user1p()->castNode()->castConst()->num();  // visit(AstConst) already split into en/ones
+		V3Number oneIfEn = constp->user1p()->castConst()->num();  // visit(AstConst) already split into en/ones
 		V3Number oneIfEnOne = constp->num();
 		AstVar* envarp = getCreateEnVarp(varrefp->varp());
 		AstNode* newp = new AstLogAnd (fl, new AstEq (fl, new AstConst(fl, oneIfEn),
@@ -964,20 +964,20 @@ class TristateVisitor : public TristateBaseVisitor {
 	nodep->lhsp()->iterateAndNext(*this);
 	if (nodep->lhsp()->user1p()) { nodep->v3error("Unsupported LHS tristate construct: "<<nodep->prettyTypeName()); return; }
     }
-    virtual void visit(AstEqCase* nodep, AstNUser*) {
+    virtual void visit(AstEqCase* nodep) {
 	visitCaseEq(nodep,false);
     }
-    virtual void visit(AstNeqCase* nodep, AstNUser*) {
+    virtual void visit(AstNeqCase* nodep) {
 	visitCaseEq(nodep,true);
     }
-    virtual void visit(AstEqWild* nodep, AstNUser*) {
+    virtual void visit(AstEqWild* nodep) {
 	visitEqNeqWild(nodep);
     }
-    virtual void visit(AstNeqWild* nodep, AstNUser*) {
+    virtual void visit(AstNeqWild* nodep) {
 	visitEqNeqWild(nodep);
     }
 
-    virtual void visit(AstPull* nodep, AstNUser*) {
+    virtual void visit(AstPull* nodep) {
 	UINFO(9,dbgState()<<nodep<<endl);
 	if (m_graphing) {
 	    if (AstVarRef* lhsp = nodep->lhsp()->castVarRef()) {
@@ -1046,7 +1046,7 @@ class TristateVisitor : public TristateBaseVisitor {
     //     const input	in(from-resolver-with-const-value), __en(from-resolver-const), __out(to-resolver-only)
     //     const inout	Spec says illegal
     //     const output	Unsupported; Illegal?
-    virtual void visit(AstPin* nodep, AstNUser*) {
+    virtual void visit(AstPin* nodep) {
 	if (m_graphing) {
 	    if (nodep->user2() & U2_GRAPHING) return;  // This pin is already expanded
 	    nodep->user2(U2_GRAPHING);
@@ -1074,7 +1074,8 @@ class TristateVisitor : public TristateBaseVisitor {
 		UINFO(5,"Unconnected pin terminate "<<nodep<<endl);
 		AstVar* ucVarp = getCreateUnconnVarp(nodep, nodep->modVarp()->dtypep());
 		nodep->exprp(new AstVarRef(nodep->fileline(), ucVarp,
-					   nodep->modVarp()->isOutput()));
+					   // We converted, so use declaration output state
+					   nodep->modVarp()->isDeclOutput()));
 		m_tgraph.setTristate(ucVarp);
 		// We don't need a driver on the wire; the lack of one will default to tristate
 	    } else if (inDeclProcessing) {   // Not an input that was a converted tristate
@@ -1185,7 +1186,7 @@ class TristateVisitor : public TristateBaseVisitor {
 	}
     }
 
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	UINFO(9,dbgState()<<nodep<<endl);
 	if (m_graphing) {
 	    if (nodep->lvalue()) {
@@ -1219,7 +1220,7 @@ class TristateVisitor : public TristateBaseVisitor {
 	}
     }
 
-    virtual void visit(AstVar* nodep, AstNUser*) {
+    virtual void visit(AstVar* nodep) {
 	nodep->iterateChildren(*this);
 	UINFO(9,dbgState()<<nodep<<endl);
 	if (m_graphing) {
@@ -1251,7 +1252,7 @@ class TristateVisitor : public TristateBaseVisitor {
 	}
     }
 
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	UINFO(8, nodep<<endl);
 	if (m_graphing) nodep->v3fatalSrc("Modules under modules not supported");  // Lots of per-module state breaks
 	// Clear state
@@ -1275,28 +1276,28 @@ class TristateVisitor : public TristateBaseVisitor {
 	m_modp = NULL;
     }
 
-    virtual void visit(AstNodeFTask* nodep, AstNUser*) {
+    virtual void visit(AstNodeFTask* nodep) {
 	// don't deal with functions
     }
 
-    virtual void visit(AstCaseItem* nodep, AstNUser*) {
+    virtual void visit(AstCaseItem* nodep) {
 	// don't deal with casez compare '???? values
 	nodep->bodysp()->iterateAndNext(*this);
     }
 
-    virtual void visit(AstCell* nodep, AstNUser*) {
+    virtual void visit(AstCell* nodep) {
 	m_cellp = nodep;
 	m_alhs = false;
 	nodep->iterateChildren(*this);
 	m_cellp = NULL;
     }
 
-    virtual void visit(AstNetlist* nodep, AstNUser*) {
+    virtual void visit(AstNetlist* nodep) {
 	nodep->iterateChildrenBackwards(*this);
     }
 
     // Default: Just iterate
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
 	checkUnhandled(nodep);
     }

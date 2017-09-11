@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2005-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2005-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -119,7 +119,7 @@ private:
 	} else {
 	    nodep->v3fatalSrc("Unknown node type");
 	}
-	if (stmtsp) bodysp = bodysp->addNext(stmtsp);
+	if (bodysp && stmtsp) bodysp = bodysp->addNext(stmtsp);
 	AstIf* ifp = new AstIf (nodep->fileline(), propp, bodysp, NULL);
 	bodysp = ifp;
 	if (nodep->castVAssert()) ifp->branchPred(AstBranchPred::BP_UNLIKELY);
@@ -163,7 +163,7 @@ private:
 	pushDeletep(nodep); VL_DANGLING(nodep);
     }
     
-    virtual void visit(AstIf* nodep, AstNUser*) {
+    virtual void visit(AstIf* nodep) {
 	if (nodep->user1SetOnce()) return;
 	if (nodep->uniquePragma() || nodep->unique0Pragma()) {
 	    AstNodeIf* ifp = nodep;
@@ -205,8 +205,8 @@ private:
 	    // Note: if this ends with an 'else', then we don't need to validate that one of the
 	    // predicates evaluates to true.
 	    AstNode* ohot = ((allow_none || hasDefaultElse)
-			     ? (new AstOneHot0(nodep->fileline(), propp))->castNode()
-			     : (new AstOneHot (nodep->fileline(), propp))->castNode());
+			     ? static_cast<AstNode*>(new AstOneHot0(nodep->fileline(), propp))
+			     : static_cast<AstNode*>(new AstOneHot (nodep->fileline(), propp)));
 	    AstIf* checkifp = new AstIf (nodep->fileline(),
 					 new AstLogNot (nodep->fileline(), ohot),
 					 newFireAssert(nodep, "'unique if' statement violated"),
@@ -220,7 +220,7 @@ private:
     }
 
     // VISITORS  //========== Case assertions
-    virtual void visit(AstCase* nodep, AstNUser*) {
+    virtual void visit(AstCase* nodep) {
 	nodep->iterateChildren(*this);
 	if (!nodep->user1SetOnce()) {
 	    bool has_default=false;
@@ -245,17 +245,24 @@ private:
 		    AstNode* propp = NULL;
 		    for (AstCaseItem* itemp = nodep->itemsp(); itemp; itemp=itemp->nextp()->castCaseItem()) {
 			for (AstNode* icondp = itemp->condsp(); icondp!=NULL; icondp=icondp->nextp()) {
-			    AstNode* onep = new AstEq(icondp->fileline(),
-						      nodep->exprp()->cloneTree(false),
-						      icondp->cloneTree(false));
+			    AstNode* onep;
+			    if (nodep->casex() || nodep->casez() || nodep->caseInside()) {
+				onep = AstEqWild::newTyped(itemp->fileline(),
+							   nodep->exprp()->cloneTree(false),
+							   icondp->cloneTree(false));
+			    } else {
+				onep = AstEq::newTyped(icondp->fileline(),
+						       nodep->exprp()->cloneTree(false),
+						       icondp->cloneTree(false));
+			    }
 			    if (propp) propp = new AstConcat(icondp->fileline(), onep, propp);
 			    else propp = onep;
 			}
 		    }
 		    bool allow_none = has_default || nodep->unique0Pragma();
 		    AstNode* ohot = (allow_none
-				     ? (new AstOneHot0(nodep->fileline(), propp))->castNode()
-				     : (new AstOneHot (nodep->fileline(), propp))->castNode());
+				     ? static_cast<AstNode*>(new AstOneHot0(nodep->fileline(), propp))
+				     : static_cast<AstNode*>(new AstOneHot (nodep->fileline(), propp)));
 		    AstIf* ifp = new AstIf (nodep->fileline(),
 					    new AstLogNot (nodep->fileline(), ohot),
 					    newFireAssert(nodep, "synthesis parallel_case, but multiple matches found"),
@@ -268,7 +275,7 @@ private:
     }
 
     // VISITORS  //========== Statements
-    virtual void visit(AstDisplay* nodep, AstNUser*) {
+    virtual void visit(AstDisplay* nodep) {
 	nodep->iterateChildren(*this);
 	// Replace the special types with standard text
 	if (nodep->displayType()==AstDisplayType::DT_INFO) {
@@ -281,27 +288,27 @@ private:
 	}
     }
 
-    virtual void visit(AstPslCover* nodep, AstNUser*) {
+    virtual void visit(AstPslCover* nodep) {
 	nodep->iterateChildren(*this);
 	if (m_beginp && nodep->name() == "") nodep->name(m_beginp->name());
 	newPslAssertion(nodep, nodep->propp(), nodep->sentreep(),
 			nodep->stmtsp(), nodep->name()); VL_DANGLING(nodep);
 	++m_statAsCover;
     }
-    virtual void visit(AstVAssert* nodep, AstNUser*) {
+    virtual void visit(AstVAssert* nodep) {
 	nodep->iterateChildren(*this);
 	newVAssertion(nodep, nodep->propp()); VL_DANGLING(nodep);
 	++m_statAsSV;
     }
 
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	m_modp = nodep;
 	//
 	nodep->iterateChildren(*this);
 	// Reset defaults
 	m_modp = NULL;
     }
-    virtual void visit(AstBegin* nodep, AstNUser*) {
+    virtual void visit(AstBegin* nodep) {
 	// This code is needed rather than a visitor in V3Begin,
 	// because V3Assert is called before V3Begin
 	AstBegin* lastp = m_beginp;
@@ -312,7 +319,7 @@ private:
 	m_beginp = lastp;
     }
 
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 public:

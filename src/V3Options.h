@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -48,14 +48,15 @@ class V3Options {
     // MEMBERS (general options)
     V3OptionsImp*	m_impp;		// Slow hidden options
 
-    V3StringSet	m_cppFiles;	// argument: C++ files to link against
-    V3StringSet	m_cFlags;	// argument: user CFLAGS
-    V3StringSet	m_ldLibs;	// argument: user LDFLAGS
+    V3StringSet m_cppFiles;	// argument: C++ files to link against
+    V3StringList m_cFlags;	// argument: user CFLAGS
+    V3StringList m_ldLibs;	// argument: user LDFLAGS
     V3StringSet	m_futures;	// argument: -Wfuture- list
     V3StringSet	m_libraryFiles;	// argument: Verilog -v files
     V3StringSet	m_clockers;	// argument: Verilog -clk signals
     V3StringSet	m_noClockers;	// argument: Verilog -noclk signals
     V3StringList m_vFiles;	// argument: Verilog files to read
+    V3StringList m_forceIncs;	// argument: -FI
     DebugSrcMap m_debugSrcs;	// argument: --debugi-<srcfile>=<level>
     DebugSrcMap m_dumpTrees;	// argument: --dump-treei-<srcfile>=<level>
     map<string,string>  m_parameters;   // Parameters
@@ -75,6 +76,7 @@ class V3Options {
     bool	m_coverageUnderscore;// main switch: --coverage-underscore
     bool	m_coverageUser;	// main switch: --coverage-func
     bool	m_debugCheck;	// main switch: --debug-check
+    bool	m_decoration;	// main switch: --decoration
     bool	m_exe;		// main switch: --exe
     bool	m_ignc;		// main switch: --ignc
     bool	m_inhibitSim;	// main switch: --inhibit-sim
@@ -87,10 +89,10 @@ class V3Options {
     bool	m_profileCFuncs;// main switch: --profile-cfuncs
     bool	m_public;	// main switch: --public
     bool	m_reportUnoptflat; // main switch: --report-unoptflat
+    bool	m_relativeIncludes; // main switch: --relative-includes
     bool	m_savable;	// main switch: --savable
     bool	m_systemC;	// main switch: --sc: System C instead of simple C++
     bool	m_skipIdentical;// main switch: --skip-identical
-    bool	m_systemPerl;	// main switch: --sp: System Perl instead of SystemC (m_systemC also set)
     bool	m_stats;	// main switch: --stats
     bool	m_statsVars;	// main switch: --stats-vars
     bool	m_trace;	// main switch: --trace
@@ -176,8 +178,6 @@ class V3Options {
     bool parseLangExt(const char* swp, const char* langswp, const V3LangCode& lc);
     string filePathCheckOneDir(const string& modname, const string& dirname);
 
-    static string getenvSYSTEMPERLGuts();
-
     V3Options(const V3Options&); ///< N/A, no copy constructor
 
   public:
@@ -198,6 +198,7 @@ class V3Options {
     void addClocker(const string& signame);
     void addNoClocker(const string& signame);
     void addVFile(const string& filename);
+    void addForceInc(const string& filename);
 
     // ACCESSORS (options)
     bool preprocOnly() const { return m_preprocOnly; }
@@ -208,9 +209,7 @@ class V3Options {
     string bin() const { return m_bin; }
     string flags() const { return m_flags; }
     bool systemC() const { return m_systemC; }
-    bool systemPerl() const { return m_systemPerl; }
-    bool usingSystemCLibs() const { return !lintOnly() && (systemPerl() || systemC()); }
-    bool usingSystemPerlLibs() const { return !lintOnly() && systemPerl(); }
+    bool usingSystemCLibs() const { return !lintOnly() && systemC(); }
     bool savable() const { return m_savable; }
     bool skipIdentical() const { return m_skipIdentical; }
     bool stats() const { return m_stats; }
@@ -226,6 +225,7 @@ class V3Options {
     bool coverageUnderscore() const { return m_coverageUnderscore; }
     bool coverageUser() const { return m_coverageUser; }
     bool debugCheck() const { return m_debugCheck; }
+    bool decoration() const { return m_decoration; }
     bool exe() const { return m_exe; }
     bool trace() const { return m_trace; }
     bool traceDups() const { return m_traceDups; }
@@ -276,10 +276,11 @@ class V3Options {
     string xAssign() const { return m_xAssign; }
 
     const V3StringSet& cppFiles() const { return m_cppFiles; }
-    const V3StringSet& cFlags() const { return m_cFlags; }
-    const V3StringSet& ldLibs() const { return m_ldLibs; }
+    const V3StringList& cFlags() const { return m_cFlags; }
+    const V3StringList& ldLibs() const { return m_ldLibs; }
     const V3StringSet& libraryFiles() const { return m_libraryFiles; }
     const V3StringList& vFiles() const { return m_vFiles; }
+    const V3StringList& forceIncs() const { return m_forceIncs; }
     const V3LangCode& defaultLanguage() const { return m_defaultLanguage; }
 
     bool hasParameter(string name);
@@ -313,7 +314,7 @@ class V3Options {
     bool oTable() const { return m_oTable; }
 
     // METHODS (uses above)
-    string traceClassBase() const { return systemPerl() ? "SpTraceVcd" : "VerilatedVcd"; }
+    string traceClassBase() const { return "VerilatedVcd"; }
 
     // METHODS (from main)
     static string version();
@@ -333,13 +334,11 @@ class V3Options {
     static string getenvSYSTEMC_ARCH();
     static string getenvSYSTEMC_INCLUDE();
     static string getenvSYSTEMC_LIBDIR();
-    static string getenvSYSTEMPERL();
-    static string getenvSYSTEMPERL_INCLUDE();
     static string getenvVERILATOR_ROOT();
 
     // METHODS (file utilities using these options)
     string fileExists (const string& filename);
-    string filePath (FileLine* fl, const string& modname, const string& errmsg);
+    string filePath(FileLine* fl, const string& modname, const string& lastpath, const string& errmsg);
     void filePathLookedMsg(FileLine* fl, const string& modname);
     V3LangCode fileLanguage(const string &filename);
     static bool fileStatDir (const string& filename);

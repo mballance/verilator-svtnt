@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -48,7 +48,7 @@ V3Number::V3Number(VerilogStringLiteral, FileLine* fileline, const string& str) 
 	    }
 	}
     }
-    opCleanThis();
+    opCleanThis(true);
 }
 
 V3Number::V3Number (FileLine* fileline, const char* sourcep) {
@@ -71,7 +71,7 @@ V3Number::V3Number (FileLine* fileline, const char* sourcep) {
 	    if (*cp != '_') *wp++ = *cp;
 	}
 	*wp++ = '\0';
-	while (*cp && *cp == '_') cp++;
+	while (*cp == '_') cp++;
 	if (*cp && tolower(*cp)=='s') {
 	    cp++; isSigned(true);
 	}
@@ -254,7 +254,7 @@ V3Number::V3Number (FileLine* fileline, const char* sourcep) {
 	setBit(obit, bitIs(obit-1));
 	obit++;
     }
-    opCleanThis();
+    opCleanThis(true);
 
     //printf("Dump \"%s\"  CP \"%s\"  B '%c' %d W %d\n", sourcep, value_startp, base, width(), m_value[0]);
 }
@@ -605,7 +605,10 @@ string V3Number::displayed(FileLine*fl, const string& vformat) const {
 
 uint32_t V3Number::toUInt() const {
     UASSERT(!isFourState(),"toUInt with 4-state "<<*this);
-    UASSERT((width()<33 || (width()<65 && m_value[1]==0)), "Value too wide "<<*this);
+    // We allow wide numbers that represent values <= 32 bits
+    for (int i=1; i<words(); ++i) {
+	UASSERT(!m_value[i], "Value too wide for 32-bits expected in this context "<<*this);
+    }
     return m_value[0];
 }
 
@@ -636,7 +639,10 @@ vlsint32_t V3Number::toSInt() const {
 
 vluint64_t V3Number::toUQuad() const {
     UASSERT(!isFourState(),"toUQuad with 4-state "<<*this);
-    UASSERT(width()<65, "Value too wide "<<*this);
+    // We allow wide numbers that represent values <= 64 bits
+    for (int i=2; i<words(); ++i) {
+	UASSERT(!m_value[i], "Value too wide for 64-bits expected in this context "<<*this);
+    }
     if (width()<=32) return ((vluint64_t)(toUInt()));
     return ((vluint64_t)m_value[1]<<VL_ULL(32)) | ((vluint64_t)m_value[0]);
 }
@@ -1211,6 +1217,9 @@ V3Number& V3Number::opShiftR (const V3Number& lhs, const V3Number& rhs) {
     // L(lhs) bit return
     if (rhs.isFourState()) return setAllBitsX();
     setZero();
+    for (int bit=32; bit<rhs.width(); bit++) {
+	if (rhs.bitIs1(bit)) return *this;  // shift of over 2^32 must be zero
+    }
     uint32_t rhsval = rhs.toUInt();
     if (rhsval < (uint32_t)lhs.width()) {
 	for (int bit=0; bit<this->width(); bit++) {
@@ -1226,6 +1235,13 @@ V3Number& V3Number::opShiftRS (const V3Number& lhs, const V3Number& rhs, uint32_
     // We presume it is signed; as that's V3Width's job to convert to opShiftR
     if (rhs.isFourState()) return setAllBitsX();
     setZero();
+    for (int bit=32; bit<rhs.width(); bit++) {
+	for (int bit=0; bit<this->width(); bit++) {
+	    setBit(bit,lhs.bitIs(lbits-1)); // 0/1/X/Z
+	}
+	if (rhs.bitIs1(lbits-1)) setAllBits1(); // -1 else 0
+	return *this;  // shift of over 2^32 must be -1/0
+    }
     uint32_t rhsval = rhs.toUInt();
     if (rhsval < (uint32_t)lhs.width()) {
 	for (int bit=0; bit<this->width(); bit++) {
@@ -1233,7 +1249,7 @@ V3Number& V3Number::opShiftRS (const V3Number& lhs, const V3Number& rhs, uint32_
 	}
     } else {
 	for (int bit=0; bit<this->width(); bit++) {
-	    setBit(bit,lhs.bitIs(lbits-1));
+	    setBit(bit,lhs.bitIs(lbits-1)); // 0/1/X/Z
 	}
     }
     return *this;
@@ -1243,6 +1259,9 @@ V3Number& V3Number::opShiftL (const V3Number& lhs, const V3Number& rhs) {
     // L(lhs) bit return
     if (rhs.isFourState()) return setAllBitsX();
     setZero();
+    for (int bit=32; bit<rhs.width(); bit++) {
+	if (rhs.bitIs1(bit)) return *this;  // shift of over 2^32 must be zero
+    }
     uint32_t rhsval = rhs.toUInt();
     for (int bit=0; bit<this->width(); bit++) {
 	if (bit >= (int)rhsval) {
@@ -1512,8 +1531,6 @@ V3Number& V3Number::opPow (const V3Number& lhs, const V3Number& rhs, bool lsign,
     if (lhs.isFourState() || rhs.isFourState()) return setAllBitsX();
     if (rhs.isEqZero()) return setQuad(1); // Overrides lhs 0 -> return 0
     // We may want to special case when the lhs is 2, so we can get larger outputs
-    if (lhs.width()>64) m_fileline->v3fatalSrc("Unsupported: Large >64bit ** power operator not implemented yet: "<<*this);
-    if (rhs.width()>64) m_fileline->v3fatalSrc("Unsupported: Large >64bit ** power operator not implemented yet: "<<*this);
     if (rsign && rhs.isNegative()) {
 	if (lhs.isEqZero()) return setAllBitsXRemoved();
 	else if (lhs.isEqOne()) return setQuad(1);
@@ -1581,10 +1598,16 @@ V3Number& V3Number::opClean (const V3Number& lhs, uint32_t bits) {
     return opSel(lhs, bits-1, 0);
 }
 
-void V3Number::opCleanThis() {
-    // Clean in place number
-    m_value[words()-1]  &= hiWordMask();
-    m_valueX[words()-1] &= hiWordMask();
+void V3Number::opCleanThis(bool warnOnTruncation) {
+    // Clean MSB of number
+    uint32_t newValueMsb = m_value[words()-1]  & hiWordMask();
+    uint32_t newValueXMsb = m_valueX[words()-1] & hiWordMask();
+    if (warnOnTruncation && (newValueMsb != m_value[words()-1] || newValueXMsb != m_valueX[words()-1])) {
+	// Displaying in decimal avoids hiWordMask truncation
+	m_fileline->v3warn(WIDTH,"Value too large for "<<width()<<" bit number: "<<displayed(m_fileline, "%d"));
+    }
+    m_value[words()-1]  = newValueMsb;
+    m_valueX[words()-1] = newValueXMsb;
 }
 
 V3Number& V3Number::opSel (const V3Number& lhs, const V3Number& msb, const V3Number& lsb) {

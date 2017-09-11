@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -41,6 +41,7 @@ public:
     static string filenameNonDirExt (const string& filename) { return filenameNonExt(filenameNonDir(filename)); }	///< Return basename of filename
     static string filenameDir (const string& filename);	///< Return directory part of filename
     static string filenameSubstitute (const string& filename);	///< Return filename with env vars removed
+    static string filenameRealPath(const string& fn);  ///< Return realpath of filename
     static bool   filenameIsRel (const string& filename);	///< True if relative
 
     // METHODS (directory utilities)

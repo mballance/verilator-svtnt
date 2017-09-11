@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -25,6 +25,8 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <climits>
+#include <cstdlib>
 #include <cerrno>
 #include <fcntl.h>
 #include <iomanip>
@@ -139,6 +141,23 @@ string V3Os::filenameSubstitute (const string& filename) {
     }
     return out;
 
+}
+
+string V3Os::filenameRealPath(const string& filename) {
+    // Get rid of all the ../ behavior in the middle of the paths.
+    // If there is a ../ that goes down from the 'root' of this path it is preserved.
+    char retpath[PATH_MAX];
+    if (
+#if defined( _MSC_VER ) || defined( __MINGW32__ )
+	::_fullpath(retpath,filename.c_str(),PATH_MAX)
+#else
+	realpath(filename.c_str(), retpath)
+#endif
+	) {
+	return string(retpath);
+    } else {
+	return filename;
+    }
 }
 
 bool V3Os::filenameIsRel(const string& filename) {

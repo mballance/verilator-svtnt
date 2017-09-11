@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -72,7 +72,7 @@ public:
 class V3GraphTestVertex : public V3GraphVertex {
     string	m_name;
 public:
-    V3GraphTestVertex(V3Graph* graphp, string name) : V3GraphVertex(graphp), m_name(name) {}
+    V3GraphTestVertex(V3Graph* graphp, const string& name) : V3GraphVertex(graphp), m_name(name) {}
     virtual ~V3GraphTestVertex() {}
     // Accessors
     virtual string name() const { return m_name; }
@@ -80,7 +80,7 @@ public:
 
 class V3GraphTestVarVertex : public V3GraphTestVertex {
 public:
-    V3GraphTestVarVertex(V3Graph* graphp, string name) : V3GraphTestVertex(graphp, name) {}
+    V3GraphTestVarVertex(V3Graph* graphp, const string& name) : V3GraphTestVertex(graphp, name) {}
     virtual ~V3GraphTestVarVertex() {}
     // Accessors
     virtual string dotColor() const { return "blue"; }
@@ -270,7 +270,7 @@ public:
 class DfaTestVertex : public DfaVertex {
     string	m_name;
 public:
-    DfaTestVertex(DfaGraph* graphp, string name) : DfaVertex(graphp), m_name(name) {}
+    DfaTestVertex(DfaGraph* graphp, const string& name) : DfaVertex(graphp), m_name(name) {}
     virtual ~DfaTestVertex() {}
     // Accessors
     virtual string name() const { return m_name; }
@@ -292,9 +292,9 @@ public:
 	DfaTestVertex*  sz  = new DfaTestVertex(gp,"sZ");
 	DfaTestVertex*  sac = new DfaTestVertex(gp,"*ACCEPT*");  sac->accepting(true);
 
-	AstNUser* L = AstNUser::fromInt(0xaa);
-	AstNUser* R = AstNUser::fromInt(0xbb);
-	AstNUser* Z = AstNUser::fromInt(0xcc);
+	VNUser L = VNUser::fromInt(0xaa);
+	VNUser R = VNUser::fromInt(0xbb);
+	VNUser Z = VNUser::fromInt(0xcc);
 
 	new DfaEdge(gp, st,  sl,  DfaEdge::EPSILON());
 	new DfaEdge(gp, sl,  srs, L);

@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -113,7 +113,7 @@ private:
 
 	// Already exists; rather than IF(a,... IF(b... optimize to IF(a&&b,
 	// Saves us teaching V3Const how to optimize, and it won't be needed again.
-	if (AstIf* ifp = prep->user2p()->castNode()->castIf()) {
+	if (AstIf* ifp = prep->user2p()->castIf()) {
 	    if (needDly) prep->v3fatalSrc("Should have already converted to non-delay");
 	    AstNRelinker replaceHandle;
 	    AstNode* earliercondp = ifp->condp()->unlinkFrBack(&replaceHandle);
@@ -133,10 +133,12 @@ private:
 	    prep->replaceWith(new AstVarRef(fl, varp, true));
 	    AstNode* newp = new AstIf(fl, condp,
 				      (needDly
-				       ? ((new AstAssignDly(fl, prep,
-							    new AstVarRef(fl, varp, false)))->castNode())
-				       : ((new AstAssign   (fl, prep,
-							    new AstVarRef(fl, varp, false)))->castNode())),
+				       ? static_cast<AstNode*>
+				       (new AstAssignDly(fl, prep,
+							 new AstVarRef(fl, varp, false)))
+				       : static_cast<AstNode*>
+				       (new AstAssign   (fl, prep,
+							 new AstVarRef(fl, varp, false)))),
 				      NULL);
 	    if (debug()>=9) newp->dumpTree(cout,"     _new: ");
 	    abovep->addNextStmt(newp,abovep);
@@ -145,30 +147,30 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	UINFO(4," MOD   "<<nodep<<endl);
 	m_modp = nodep;
 	m_constXCvt = true;
 	nodep->iterateChildren(*this);
 	m_modp = NULL;
     }
-    virtual void visit(AstAssignDly* nodep, AstNUser*) {
+    virtual void visit(AstAssignDly* nodep) {
 	m_assigndlyp = nodep;
 	nodep->iterateChildren(*this); VL_DANGLING(nodep);  // May delete nodep.
 	m_assigndlyp = NULL;
     }
-    virtual void visit(AstAssignW* nodep, AstNUser*) {
+    virtual void visit(AstAssignW* nodep) {
 	m_assignwp = nodep;
 	nodep->iterateChildren(*this); VL_DANGLING(nodep);  // May delete nodep.
 	m_assignwp = NULL;
     }
-    virtual void visit(AstCaseItem* nodep, AstNUser*) {
+    virtual void visit(AstCaseItem* nodep) {
 	m_constXCvt = false;  // Avoid losing the X's in casex
 	nodep->condsp()->iterateAndNext(*this);
 	m_constXCvt = true;
 	nodep->bodysp()->iterateAndNext(*this);
     }
-    virtual void visit(AstNodeDType* nodep, AstNUser*) {
+    virtual void visit(AstNodeDType* nodep) {
 	m_constXCvt = false;  // Avoid losing the X's in casex
 	nodep->iterateChildren(*this);
 	m_constXCvt = true;
@@ -240,19 +242,19 @@ private:
 	}
     }
 
-    virtual void visit(AstEqCase* nodep, AstNUser*) {
+    virtual void visit(AstEqCase* nodep) {
 	visitEqNeqCase(nodep);
     }
-    virtual void visit(AstNeqCase* nodep, AstNUser*) {
+    virtual void visit(AstNeqCase* nodep) {
 	visitEqNeqCase(nodep);
     }
-    virtual void visit(AstEqWild* nodep, AstNUser*) {
+    virtual void visit(AstEqWild* nodep) {
 	visitEqNeqWild(nodep);
     }
-    virtual void visit(AstNeqWild* nodep, AstNUser*) {
+    virtual void visit(AstNeqWild* nodep) {
 	visitEqNeqWild(nodep);
     }
-    virtual void visit(AstIsUnknown* nodep, AstNUser*) {
+    virtual void visit(AstIsUnknown* nodep) {
 	nodep->iterateChildren(*this);
 	// Ahh, we're two state, so this is easy
 	UINFO(4," ISUNKNOWN->0 "<<nodep<<endl);
@@ -261,7 +263,7 @@ private:
 	nodep->replaceWith(newp);
 	nodep->deleteTree(); VL_DANGLING(nodep);
     }
-    virtual void visit(AstConst* nodep, AstNUser*) {
+    virtual void visit(AstConst* nodep) {
 	if (m_constXCvt
 	    && nodep->num().isFourState()) {
 	    UINFO(4," CONST4 "<<nodep<<endl);
@@ -325,7 +327,7 @@ private:
 	}
     }
 
-    virtual void visit(AstSel* nodep, AstNUser*) {
+    virtual void visit(AstSel* nodep) {
 	nodep->iterateChildren(*this);
 	if (!nodep->user1SetOnce()) {
 	    // Guard against reading/writing past end of bit vector array
@@ -373,7 +375,7 @@ private:
 	}
     }
 
-    virtual void visit(AstArraySel* nodep, AstNUser*) {
+    virtual void visit(AstArraySel* nodep) {
 	nodep->iterateChildren(*this);
 	if (!nodep->user1SetOnce()) {
 	    if (debug()==9) nodep->dumpTree(cout,"-in: ");
@@ -385,7 +387,7 @@ private:
 	    } else if (basefromp->castConst()) {
 		// If it's a PARAMETER[bit], then basefromp may be a constant instead of a varrefp
 	    } else {
-		nodep->v3fatalSrc("No VarRef or Const under ArraySel\n");
+		nodep->v3fatalSrc("No VarRef or Const under ArraySel");
 	    }
 	    // Find range of dtype we are selecting from
 	    int declElements = -1;
@@ -451,7 +453,7 @@ private:
     }
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 

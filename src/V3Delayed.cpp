@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -158,7 +158,7 @@ private:
 	if (oldactivep->sensesp() != m_activep->sensesp()) {
 	    if (!varrefp->varp()->fileline()->warnIsOff(V3ErrorCode::MULTIDRIVEN)
 		&& !varrefp->varp()->user2()) {
-		varrefp->varp()->v3warn(MULTIDRIVEN,"Signal has multiple driving blocks: "<<varrefp->varp()->prettyName()<<endl
+		varrefp->varp()->v3warn(MULTIDRIVEN,"Signal has multiple driving blocks with different clocking: "<<varrefp->varp()->prettyName()<<endl
 					<<varrefp->warnMore()<<"... Location of first driving block"<<endl
 					<<oldactivep->warnMore()<<"... Location of other driving block");
 		varrefp->varp()->user2(true);
@@ -207,8 +207,8 @@ private:
 	    dimvalp.push_front(valp);
 	}
 	AstVarRef* varrefp = dimselp->castVarRef();
-	if (!varrefp) nodep->v3fatalSrc("No var underneath arraysels\n");
-	if (!varrefp->varScopep()) varrefp->v3fatalSrc("Var didn't get varscoped in V3Scope.cpp\n");
+	if (!varrefp) nodep->v3fatalSrc("No var underneath arraysels");
+	if (!varrefp->varScopep()) varrefp->v3fatalSrc("Var didn't get varscoped in V3Scope.cpp");
 	varrefp->unlinkFrBack();
 	AstVar* oldvarp = varrefp->varp();
 	int modVecNum = oldvarp->user4();  oldvarp->user4(modVecNum+1);
@@ -268,7 +268,7 @@ private:
 	    // then we told this nodep->user3 we can use its Vdlyvset rather than making a new one.
 	    // This is good for code like:
 	    //    for (i=0; i<5; i++)  vector[i] <= something;
-	    setvscp = nodep->user3p()->castNode()->castVarScope();
+	    setvscp = nodep->user3p()->castVarScope();
 	    ++m_statSharedSet;
 	} else {  // Create new one
 	    string setvarname = (string("__Vdlyvset__")+oldvarp->shortName()+"__v"+cvtToStr(modVecNum));
@@ -303,9 +303,9 @@ private:
 	// Build "IF (changeit) ...
 	UINFO(9,"   For "<<setvscp<<endl);
 	UINFO(9,"     & "<<varrefp<<endl);
-	AstAlwaysPost* finalp = varrefp->varScopep()->user4p()->castNode()->castAlwaysPost();
+	AstAlwaysPost* finalp = varrefp->varScopep()->user4p()->castAlwaysPost();
 	if (finalp) {
-	    AstActive* oldactivep = finalp->user2p()->castNode()->castActive();
+	    AstActive* oldactivep = finalp->user2p()->castActive();
 	    checkActivePost(varrefp, oldactivep);
 	    if (setinitp) oldactivep->addStmtsp(setinitp);
 	} else { // first time we've dealt with this memory
@@ -318,10 +318,10 @@ private:
 	    if (setinitp) newactp->addStmtsp(setinitp);
 	}
 	AstIf* postLogicp;
-	if (finalp->user3p()->castNode() == setvscp) {
+	if (finalp->user3p() == setvscp) {
 	    // Optimize as above; if sharing Vdlyvset *ON SAME VARIABLE*,
 	    // we can share the IF statement too
-	    postLogicp = finalp->user4p()->castNode()->castIf();
+	    postLogicp = finalp->user4p()->castIf();
 	    if (!postLogicp) nodep->v3fatalSrc("Delayed assignment misoptimized; prev var found w/o associated IF");
 	} else {
 	    postLogicp = new AstIf (nodep->fileline(),
@@ -338,22 +338,22 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNetlist* nodep, AstNUser*) {
+    virtual void visit(AstNetlist* nodep) {
 	//VV*****  We reset all userp() on the netlist
 	m_modVarMap.clear();
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstScope* nodep, AstNUser*) {
+    virtual void visit(AstScope* nodep) {
 	UINFO(4," MOD   "<<nodep<<endl);
 	AstNode::user3ClearTree();
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstCFunc* nodep, AstNUser*) {
+    virtual void visit(AstCFunc* nodep) {
 	m_cfuncp = nodep;
 	nodep->iterateChildren(*this);
 	m_cfuncp = NULL;
     }
-    virtual void visit(AstActive* nodep, AstNUser*) {
+    virtual void visit(AstActive* nodep) {
 	m_activep = nodep;
 	bool oldinit = m_inInitial;
 	m_inInitial = nodep->hasInitial();
@@ -361,7 +361,7 @@ private:
 	nodep->iterateChildren(*this);
 	m_inInitial = oldinit;
     }
-    virtual void visit(AstAssignDly* nodep, AstNUser*) {
+    virtual void visit(AstAssignDly* nodep) {
 	m_inDly = true;
 	m_nextDlyp = nodep->nextp()->castAssignDly();  // Next assignment in same block, maybe NULL.
 	if (m_cfuncp) nodep->v3error("Unsupported: Delayed assignment inside public function/task");
@@ -385,7 +385,7 @@ private:
 	m_nextDlyp = NULL;
     }
 
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	if (!nodep->user2Inc()) {  // Not done yet
 	    if (m_inDly && nodep->lvalue()) {
 		UINFO(4,"AssignDlyVar: "<<nodep<<endl);
@@ -393,10 +393,10 @@ private:
 		if (!m_activep) nodep->v3fatalSrc("<= not under sensitivity block");
 		if (!m_activep->hasClocked()) nodep->v3error("Internal: Blocking <= assignment in non-clocked block, should have converted in V3Active");
 		AstVarScope* oldvscp = nodep->varScopep();
-		if (!oldvscp) nodep->v3fatalSrc("Var didn't get varscoped in V3Scope.cpp\n");
-		AstVarScope* dlyvscp = oldvscp->user1p()->castNode()->castVarScope();
+		if (!oldvscp) nodep->v3fatalSrc("Var didn't get varscoped in V3Scope.cpp");
+		AstVarScope* dlyvscp = oldvscp->user1p()->castVarScope();
 		if (dlyvscp) {  // Multiple use of delayed variable
-		    AstActive* oldactivep = dlyvscp->user2p()->castNode()->castActive();
+		    AstActive* oldactivep = dlyvscp->user2p()->castActive();
 		    checkActivePost(nodep, oldactivep);
 		}
 		if (!dlyvscp) {  // First use of this delayed variable
@@ -432,10 +432,10 @@ private:
 	}
     }
 
-    virtual void visit(AstNodeFor* nodep, AstNUser*) {
-	nodep->v3fatalSrc("For statements should have been converted to while statements in V3Begin\n");
+    virtual void visit(AstNodeFor* nodep) {
+	nodep->v3fatalSrc("For statements should have been converted to while statements in V3Begin");
     }
-    virtual void visit(AstWhile* nodep, AstNUser*) {
+    virtual void visit(AstWhile* nodep) {
 	bool oldloop = m_inLoop;
 	m_inLoop = true;
 	nodep->iterateChildren(*this);
@@ -444,7 +444,7 @@ private:
 
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 

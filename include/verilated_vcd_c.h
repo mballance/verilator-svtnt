@@ -3,7 +3,7 @@
 //
 // THIS MODULE IS PUBLICLY LICENSED
 //
-// Copyright 2001-2016 by Wilson Snyder.  This program is free software;
+// Copyright 2001-2017 by Wilson Snyder.  This program is free software;
 // you can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License Version 2.0.
 //
@@ -382,11 +382,13 @@ public:
 	}
     }
     inline void chgDouble (vluint32_t code, const double newval) {
+	// cppcheck-suppress invalidPointerCast
 	if (VL_UNLIKELY((*((double*)&m_sigs_oldvalp[code])) != newval)) {
 	    fullDouble (code, newval);
 	}
     }
     inline void chgFloat (vluint32_t code, const float newval) {
+	// cppcheck-suppress invalidPointerCast
 	if (VL_UNLIKELY((*((float*)&m_sigs_oldvalp[code])) != newval)) {
 	    fullFloat (code, newval);
 	}
@@ -428,6 +430,15 @@ public:
     void dump (double timestamp) { dump((vluint64_t)timestamp); }
     void dump (vluint32_t timestamp) { dump((vluint64_t)timestamp); }
     void dump (int timestamp) { dump((vluint64_t)timestamp); }
+    /// Set time units (s/ms, defaults to ns)
+    /// See also VL_TIME_PRECISION, and VL_TIME_MULTIPLIER in verilated.h
+    void set_time_unit (const char* unit) { m_sptrace.set_time_unit(unit); }
+    void set_time_unit (const string& unit) { set_time_unit(unit.c_str()); }
+    /// Set time resolution (s/ms, defaults to ns)
+    /// See also VL_TIME_PRECISION, and VL_TIME_MULTIPLIER in verilated.h
+    void set_time_resolution (const char* unit) { m_sptrace.set_time_resolution(unit); }
+    void set_time_resolution (const string& unit) { set_time_resolution(unit.c_str()); }
+
     /// Internal class access
     inline VerilatedVcd* spTrace () { return &m_sptrace; };
 };

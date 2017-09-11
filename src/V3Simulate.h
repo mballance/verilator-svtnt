@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -44,11 +44,24 @@
 #include "V3Task.h"
 
 #include <deque>
+#include <sstream>
 
 //============================================================================
 
 //######################################################################
 // Simulate class functions
+
+class SimulateStackNode {
+public:
+    // MEMBERS
+    AstFuncRef*		m_funcp;
+    V3TaskConnects*	m_tconnects;
+    // CONSTRUCTORS
+    SimulateStackNode(AstFuncRef* funcp, V3TaskConnects* tconnects):
+	m_funcp(funcp),
+	m_tconnects(tconnects) {}
+    ~SimulateStackNode() {}
+};
 
 class SimulateVisitor : public AstNVisitor {
     // Simulate a node tree, returning value of variables
@@ -90,12 +103,66 @@ private:
     // Simulating:
     deque<V3Number*>	m_numFreeps;	///< List of all numbers free and not in use
     deque<V3Number*>	m_numAllps; 	///< List of all numbers free and in use
+    deque<SimulateStackNode*>	m_callStack;	///< Call stack for verbose error messages
+
+    // Cleanup
+    // V3Numbers that represents strings are a bit special and the API for V3Number does not allow changing them.
+    deque<V3Number*>    m_stringNumbersp; // List of allocated string numbers
+
 
     // Note level 8&9 include debugging each simulation value
     static int debug() {
 	static int level = -1;
 	if (VL_UNLIKELY(level < 0)) level = v3Global.opt.debugSrcLevel(__FILE__);
 	return level;
+    }
+
+    // Potentially very slow, intended for debugging
+    string prettyNumber(V3Number* nump, AstNodeDType* dtypep) {
+	if (AstRefDType* refdtypep = dtypep->castRefDType()) {
+	    dtypep = refdtypep->skipRefp();
+	}
+	if (AstStructDType* stp = dtypep->castStructDType()) {
+	    if (stp->packed()) {
+		ostringstream out;
+		out<<"'{";
+		for (AstMemberDType* itemp = stp->membersp(); itemp; itemp=itemp->nextp()->castMemberDType()) {
+		    int width = itemp->width();
+		    int lsb = itemp->lsb();
+		    int msb = lsb + width - 1;
+		    V3Number fieldNum = V3Number(nump->fileline(), width);
+		    fieldNum.opSel(*nump, msb, lsb);
+		    out<<itemp->name()<<": ";
+		    if (AstNodeDType * childTypep = itemp->subDTypep()) {
+			out<<prettyNumber(&fieldNum, childTypep);
+		    } else {
+			out<<fieldNum;
+		    }
+		    if (itemp->nextp()) out<<", ";
+		}
+		out<<"}";
+		return out.str();
+	    }
+	} else if (AstPackArrayDType * arrayp = dtypep->castPackArrayDType()) {
+	    if (AstNodeDType * childTypep = arrayp->subDTypep()) {
+		ostringstream out;
+		out<<"[";
+		int arrayElements = arrayp->elementsConst();
+		for (int element = 0; element < arrayElements; ++element) {
+		    int width = childTypep->width();
+		    int lsb = width * element;
+		    int msb = lsb + width - 1;
+		    V3Number fieldNum = V3Number(nump->fileline(), width);
+		    fieldNum.opSel(*nump, msb, lsb);
+		    int arrayElem = arrayp->lsb() + element;
+		    out<<arrayElem<<" = "<<prettyNumber(&fieldNum, childTypep);
+		    if (element < arrayElements - 1) out<<", ";
+		}
+		out<<"]";
+		return out.str();
+	    }
+	}
+	return nump->ascii();
     }
 
     // Checking METHODS
@@ -114,6 +181,19 @@ public:
 		cout<<endl;
 	    }
 	    m_whyNotOptimizable = why;
+	    ostringstream stack;
+	    for (deque<SimulateStackNode*>::iterator it=m_callStack.begin(); it !=m_callStack.end(); ++it) {
+		AstFuncRef* funcp = (*it)->m_funcp;
+		stack<<"\nCalled from:\n"<<funcp->fileline()<<" "<<funcp->prettyName()<<"() with parameters:";
+		V3TaskConnects* tconnects = (*it)->m_tconnects;
+		for (V3TaskConnects::iterator conIt = tconnects->begin(); conIt != tconnects->end(); ++conIt) {
+		    AstVar* portp = conIt->first;
+		    AstNode* pinp = conIt->second->exprp();
+		    AstNodeDType* dtypep = pinp->dtypep();
+		    stack<<"\n    "<<portp->prettyName()<<" = "<<prettyNumber(fetchNumber(pinp), dtypep);
+		}
+	    }
+	    m_whyNotOptimizable += stack.str();
 	}
     }
     inline bool optimizable() const { return m_whyNotNodep==NULL; }
@@ -186,11 +266,11 @@ public:
 private:
     inline void setNumber(AstNode* nodep, const V3Number* nump) {
 	UINFO(9,"     set num "<<*nump<<" on "<<nodep<<endl);
-	nodep->user3p((AstNUser*)nump);
+	nodep->user3p((void*)nump);
     }
     inline void setOutNumber(AstNode* nodep, const V3Number* nump) {
 	UINFO(9,"     set num "<<*nump<<" on "<<nodep<<endl);
-	nodep->user2p((AstNUser*)nump);
+	nodep->user2p((void*)nump);
     }
 
     void checkNodeInfo(AstNode* nodep) {
@@ -244,15 +324,15 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstAlways* nodep, AstNUser*) {
+    virtual void visit(AstAlways* nodep) {
 	if (jumpingOver(nodep)) return;
 	checkNodeInfo(nodep);
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstSenTree* nodep, AstNUser*) {
+    virtual void visit(AstSenTree* nodep) {
 	// Sensitivities aren't inputs per se; we'll keep our tree under the same sens.
     }
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	if (jumpingOver(nodep)) return;
 	if (!optimizable()) return;  // Accelerate
 	nodep->varp()->iterateChildren(*this);
@@ -311,19 +391,19 @@ private:
 	    }
 	}
     }
-    virtual void visit(AstVarXRef* nodep, AstNUser*) {
+    virtual void visit(AstVarXRef* nodep) {
 	if (jumpingOver(nodep)) return;
 	if (m_scoped) {  badNodeType(nodep); return; }
 	else { clearOptimizable(nodep,"Language violation: Dotted hierarchical references not allowed in constant functions"); }
     }
-    virtual void visit(AstNodeFTask* nodep, AstNUser*) {
+    virtual void visit(AstNodeFTask* nodep) {
 	if (jumpingOver(nodep)) return;
 	if (!m_params) { badNodeType(nodep); return; }
 	if (nodep->dpiImport()) { clearOptimizable(nodep,"DPI import functions aren't simulatable"); }
 	checkNodeInfo(nodep);
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstNodeIf* nodep, AstNUser*) {
+    virtual void visit(AstNodeIf* nodep) {
 	if (jumpingOver(nodep)) return;
 	UINFO(5,"   IF "<<nodep<<endl);
 	checkNodeInfo(nodep);
@@ -340,26 +420,28 @@ private:
 	    }
 	}
     }
-    virtual void visit(AstConst* nodep, AstNUser*) {
+    virtual void visit(AstConst* nodep) {
 	checkNodeInfo(nodep);
 	if (!m_checkOnly && optimizable()) {
 	    setNumber(nodep, &(nodep->num()));
 	}
     }
-    virtual void visit(AstEnumItemRef* nodep, AstNUser*) {
+    virtual void visit(AstEnumItemRef* nodep) {
 	checkNodeInfo(nodep);
 	if (!nodep->itemp()) nodep->v3fatalSrc("Not linked");
 	if (!m_checkOnly && optimizable()) {
             AstNode* valuep = nodep->itemp()->valuep();
 	    if (valuep) {
 	        valuep->iterateAndNext(*this);
-	        newNumber(nodep)->opAssign(*fetchNumber(valuep));
+		if (optimizable()) {
+		    newNumber(nodep)->opAssign(*fetchNumber(valuep));
+		}
             } else {
                 clearOptimizable(nodep, "No value found for enum item");
             }
         }
     }
-    virtual void visit(AstNodeUniop* nodep, AstNUser*) {
+    virtual void visit(AstNodeUniop* nodep) {
 	if (!optimizable()) return;  // Accelerate
 	checkNodeInfo(nodep);
 	nodep->iterateChildren(*this);
@@ -367,7 +449,7 @@ private:
 	    nodep->numberOperate(*newNumber(nodep), *fetchNumber(nodep->lhsp()));
 	}
     }
-    virtual void visit(AstNodeBiop* nodep, AstNUser*) {
+    virtual void visit(AstNodeBiop* nodep) {
 	if (!optimizable()) return;  // Accelerate
 	checkNodeInfo(nodep);
 	nodep->iterateChildren(*this);
@@ -375,7 +457,7 @@ private:
 	    nodep->numberOperate(*newNumber(nodep), *fetchNumber(nodep->lhsp()), *fetchNumber(nodep->rhsp()));
 	}
     }
-    virtual void visit(AstNodeTriop* nodep, AstNUser*) {
+    virtual void visit(AstNodeTriop* nodep) {
 	if (!optimizable()) return;  // Accelerate
 	checkNodeInfo(nodep);
 	nodep->iterateChildren(*this);
@@ -386,7 +468,7 @@ private:
 				 *fetchNumber(nodep->thsp()));
 	}
     }
-    virtual void visit(AstLogAnd* nodep, AstNUser*) {
+    virtual void visit(AstLogAnd* nodep) {
 	// Need to short circuit
 	if (!optimizable()) return;  // Accelerate
 	checkNodeInfo(nodep);
@@ -394,15 +476,17 @@ private:
 	    nodep->iterateChildren(*this);
 	} else {
 	    nodep->lhsp()->accept(*this);
-	    if (fetchNumber(nodep->lhsp())->isNeqZero()) {
-		nodep->rhsp()->accept(*this);
-		newNumber(nodep)->opAssign(*fetchNumber(nodep->rhsp()));
-	    } else {
-		newNumber(nodep)->opAssign(*fetchNumber(nodep->lhsp()));  // a zero
+	    if (optimizable()) {
+		if (fetchNumber(nodep->lhsp())->isNeqZero()) {
+		    nodep->rhsp()->accept(*this);
+		    newNumber(nodep)->opAssign(*fetchNumber(nodep->rhsp()));
+		} else {
+		    newNumber(nodep)->opAssign(*fetchNumber(nodep->lhsp()));  // a zero
+		}
 	    }
 	}
     }
-    virtual void visit(AstLogOr* nodep, AstNUser*) {
+    virtual void visit(AstLogOr* nodep) {
 	// Need to short circuit
 	if (!optimizable()) return;  // Accelerate
 	checkNodeInfo(nodep);
@@ -410,15 +494,17 @@ private:
 	    nodep->iterateChildren(*this);
 	} else {
 	    nodep->lhsp()->accept(*this);
-	    if (fetchNumber(nodep->lhsp())->isNeqZero()) {
-		newNumber(nodep)->opAssign(*fetchNumber(nodep->lhsp()));  // a one
-	    } else {
-		nodep->rhsp()->accept(*this);
-		newNumber(nodep)->opAssign(*fetchNumber(nodep->rhsp()));
+	    if (optimizable()) {
+		if (fetchNumber(nodep->lhsp())->isNeqZero()) {
+		    newNumber(nodep)->opAssign(*fetchNumber(nodep->lhsp()));  // a one
+		} else {
+		    nodep->rhsp()->accept(*this);
+		    newNumber(nodep)->opAssign(*fetchNumber(nodep->rhsp()));
+		}
 	    }
 	}
     }
-    virtual void visit(AstLogIf* nodep, AstNUser*) {
+    virtual void visit(AstLogIf* nodep) {
 	// Need to short circuit, same as (!A || B)
 	if (!optimizable()) return;  // Accelerate
 	checkNodeInfo(nodep);
@@ -426,15 +512,17 @@ private:
 	    nodep->iterateChildren(*this);
 	} else {
 	    nodep->lhsp()->accept(*this);
-	    if (fetchNumber(nodep->lhsp())->isEqZero()) {
-		newNumber(nodep)->opAssign(V3Number(nodep->fileline(), 1, 1));  // a one
-	    } else {
-		nodep->rhsp()->accept(*this);
-		newNumber(nodep)->opAssign(*fetchNumber(nodep->rhsp()));
+	    if (optimizable()) {
+		if (fetchNumber(nodep->lhsp())->isEqZero()) {
+		    newNumber(nodep)->opAssign(V3Number(nodep->fileline(), 1, 1));  // a one
+		} else {
+		    nodep->rhsp()->accept(*this);
+		    newNumber(nodep)->opAssign(*fetchNumber(nodep->rhsp()));
+		}
 	    }
 	}
     }
-    virtual void visit(AstNodeCond* nodep, AstNUser*) {
+    virtual void visit(AstNodeCond* nodep) {
 	// We could use above visit(AstNodeTriop), but need to do short circuiting.
 	// It's also slower even O(n^2) to evaluate both sides when we really only need to evaluate one side.
 	if (!optimizable()) return;  // Accelerate
@@ -443,65 +531,68 @@ private:
 	    nodep->iterateChildren(*this);
 	} else {
 	    nodep->condp()->accept(*this);
-	    if (fetchNumber(nodep->condp())->isNeqZero()) {
-		nodep->expr1p()->accept(*this);
-		newNumber(nodep)->opAssign(*fetchNumber(nodep->expr1p()));
-	    } else {
-		nodep->expr2p()->accept(*this);
-		newNumber(nodep)->opAssign(*fetchNumber(nodep->expr2p()));
-	    }
-	}
-    }
-
-    bool handleAssignSel(AstNodeAssign* nodep, AstSel* selp, AstVarRef** outVarrefp, int depth) {
-	checkNodeInfo(selp);
-	AstVarRef* varrefp = selp->fromp()->castVarRef();
-	if (!varrefp) {
-	    selp = selp->lhsp()->castSel();
-	    if (selp) {
-		if (!handleAssignSel(nodep, selp, &varrefp, depth+1)) {
-		    clearOptimizable(nodep, "Select LHS isn't simple variable");
-		    return false;
-		}
-	    }
-	}
-
-	if (m_checkOnly) {
-	    nodep->iterateChildren(*this);
-	} else {
-	    selp->lsbp()->iterateAndNext(*this);
-	    nodep->rhsp()->iterateAndNext(*this);
-
 	    if (optimizable()) {
-		if (varrefp) {
-		    AstNode* vscp = varOrScope(varrefp);
-		    V3Number outnum = V3Number(nodep->fileline());
-		    if (V3Number* vscpnump = fetchOutNumberNull(vscp)) {
-			outnum = *vscpnump;
-		    } else if (V3Number* vscpnump = fetchNumberNull(vscp)) {
-			outnum = *vscpnump;
-		    } else {  // Assignment to unassigned variable, all bits are X or 0
-			outnum = V3Number(nodep->fileline(), varrefp->varp()->widthMin());
-			if (varrefp->varp()->basicp() && varrefp->varp()->basicp()->isZeroInit()) {
-			    outnum.setAllBits0();
-			} else {
-			    outnum.setAllBitsX();
-			}
-		    }
-		    if (depth == 0) {
-			outnum.opSelInto(*fetchNumber(nodep->rhsp()),
-					 *fetchNumber(selp->lsbp()),
-					 selp->widthConst());
-			assignOutNumber(nodep, vscp, &outnum);
-		    }
+		if (fetchNumber(nodep->condp())->isNeqZero()) {
+		    nodep->expr1p()->accept(*this);
+		    newNumber(nodep)->opAssign(*fetchNumber(nodep->expr1p()));
+		} else {
+		    nodep->expr2p()->accept(*this);
+		    newNumber(nodep)->opAssign(*fetchNumber(nodep->expr2p()));
 		}
 	    }
 	}
-	if (outVarrefp) *outVarrefp = varrefp;
-	return true;
     }
 
-    virtual void visit(AstNodeAssign* nodep, AstNUser*) {
+    void handleAssignSel(AstNodeAssign* nodep, AstSel* selp) {
+	AstVarRef* varrefp = NULL;
+	V3Number lsb = V3Number(nodep->fileline());
+	nodep->rhsp()->iterateAndNext(*this); // Value to assign
+	handleAssignSelRecurse(nodep, selp, varrefp/*ref*/, lsb/*ref*/, 0);
+	if (!m_checkOnly && optimizable()) {
+	    if (!varrefp) nodep->v3fatalSrc("Indicated optimizable, but no variable found on RHS of select");
+	    AstNode* vscp = varOrScope(varrefp);
+	    V3Number outnum = V3Number(nodep->fileline());
+	    if (V3Number* vscpnump = fetchOutNumberNull(vscp)) {
+		outnum = *vscpnump;
+	    } else if (V3Number* vscpnump = fetchNumberNull(vscp)) {
+		outnum = *vscpnump;
+	    } else {  // Assignment to unassigned variable, all bits are X or 0
+		outnum = V3Number(nodep->fileline(), varrefp->varp()->widthMin());
+		if (varrefp->varp()->basicp() && varrefp->varp()->basicp()->isZeroInit()) {
+		    outnum.setAllBits0();
+		} else {
+		    outnum.setAllBitsX();
+		}
+	    }
+	    outnum.opSelInto(*fetchNumber(nodep->rhsp()),
+			     lsb,
+			     selp->widthConst());
+	    assignOutNumber(nodep, vscp, &outnum);
+	}
+    }
+    void handleAssignSelRecurse (AstNodeAssign* nodep, AstSel* selp,
+				 AstVarRef*& outVarrefpRef, V3Number& lsbRef,
+				 int depth) {
+	// Recurse down to find final variable being set (outVarrefp), with value to write on nodep->rhsp()
+	checkNodeInfo(selp);
+	selp->lsbp()->iterateAndNext(*this);  // Bit index
+	if (AstVarRef* varrefp = selp->fromp()->castVarRef()) {
+	    outVarrefpRef = varrefp;
+	    lsbRef = *fetchNumber(selp->lsbp());
+	    return;  // And presumably still optimizable()
+	} else if (AstSel* subselp = selp->lhsp()->castSel()) {
+	    V3Number sublsb = V3Number(nodep->fileline());
+	    handleAssignSelRecurse(nodep, subselp, outVarrefpRef, sublsb/*ref*/, depth+1);
+	    if (optimizable()) {
+		lsbRef = sublsb;
+		lsbRef.opAdd(sublsb, *fetchNumber(selp->lsbp()));
+	    }
+	} else {
+	    clearOptimizable(nodep, "Select LHS isn't simple variable");
+	}
+    }
+
+    virtual void visit(AstNodeAssign* nodep) {
 	if (jumpingOver(nodep)) return;
 	if (!optimizable()) return;  // Accelerate
 	if (nodep->castAssignDly()) {
@@ -515,7 +606,7 @@ private:
 
 	if (AstSel* selp = nodep->lhsp()->castSel()) {
 	    if (!m_params) { clearOptimizable(nodep, "LHS has select"); return; }
-	    handleAssignSel(nodep, selp, NULL, 0);
+	    handleAssignSel(nodep, selp);
 	}
 	else if (!nodep->lhsp()->castVarRef()) {
 	    clearOptimizable(nodep, "LHS isn't simple variable");
@@ -532,11 +623,11 @@ private:
 	}
 	m_inDlyAssign = false;
     }
-    virtual void visit(AstBegin* nodep, AstNUser*) {
+    virtual void visit(AstBegin* nodep) {
 	checkNodeInfo(nodep);
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstNodeCase* nodep, AstNUser*) {
+    virtual void visit(AstNodeCase* nodep) {
 	if (jumpingOver(nodep)) return;
 	UINFO(5,"   CASE "<<nodep<<endl);
 	checkNodeInfo(nodep);
@@ -572,16 +663,16 @@ private:
 	}
     }
 
-    virtual void visit(AstCaseItem* nodep, AstNUser*) {
+    virtual void visit(AstCaseItem* nodep) {
 	// Real handling is in AstNodeCase
 	if (jumpingOver(nodep)) return;
 	checkNodeInfo(nodep);
 	nodep->iterateChildren(*this);
     }
 
-    virtual void visit(AstComment*, AstNUser*) {}
+    virtual void visit(AstComment*) {}
 
-    virtual void visit(AstJumpGo* nodep, AstNUser*) {
+    virtual void visit(AstJumpGo* nodep) {
 	if (jumpingOver(nodep)) return;
 	checkNodeInfo(nodep);
 	if (!m_checkOnly) {
@@ -589,7 +680,7 @@ private:
 	    m_jumpp = nodep;
 	}
     }
-    virtual void visit(AstJumpLabel* nodep, AstNUser*) {
+    virtual void visit(AstJumpLabel* nodep) {
 	if (jumpingOver(nodep)) return;
 	checkNodeInfo(nodep);
 	nodep->iterateChildren(*this);
@@ -598,7 +689,7 @@ private:
 	    m_jumpp = NULL;
 	}
     }
-    virtual void visit(AstStop* nodep, AstNUser*) {
+    virtual void visit(AstStop* nodep) {
 	if (jumpingOver(nodep)) return;
 	if (m_params) {  // This message seems better than an obscure $stop
 	    // The spec says $stop is just ignored, it seems evil to ignore assertions
@@ -607,7 +698,7 @@ private:
 	checkNodeInfo(nodep);
     }
 
-    virtual void visit(AstNodeFor* nodep, AstNUser*) {
+    virtual void visit(AstNodeFor* nodep) {
 	// Doing lots of Whiles is slow, so only for parameters
 	UINFO(5,"   FOR "<<nodep<<endl);
 	if (!m_params) { badNodeType(nodep); return; }
@@ -634,7 +725,7 @@ private:
 	}
     }
 
-    virtual void visit(AstWhile* nodep, AstNUser*) {
+    virtual void visit(AstWhile* nodep) {
 	// Doing lots of Whiles is slow, so only for parameters
 	if (jumpingOver(nodep)) return;
 	UINFO(5,"   WHILE "<<nodep<<endl);
@@ -668,8 +759,9 @@ private:
 	}
     }
 
-    virtual void visit(AstFuncRef* nodep, AstNUser*) {
+    virtual void visit(AstFuncRef* nodep) {
 	if (jumpingOver(nodep)) return;
+	if (!optimizable()) return;  // Accelerate
 	UINFO(5,"   FUNCREF "<<nodep<<endl);
 	if (!m_params) { badNodeType(nodep); return; }
 	AstNodeFTask* funcp = nodep->taskp()->castNodeFTask(); if (!funcp) nodep->v3fatalSrc("Not linked");
@@ -701,8 +793,11 @@ private:
 		}
 	    }
 	}
+	SimulateStackNode stackNode(nodep, &tconnects);
+	m_callStack.push_front(&stackNode);
 	// Evaluate the function
 	funcp->accept(*this);
+	m_callStack.pop_front();
 	if (!m_checkOnly && optimizable()) {
 	    // Grab return value from output variable (if it's a function)
 	    if (!funcp->fvarp()) nodep->v3fatalSrc("Function reference points at non-function");
@@ -710,13 +805,20 @@ private:
 	}
     }
 
-    virtual void visit(AstVar* nodep, AstNUser*) {
+    virtual void visit(AstVar* nodep) {
 	if (jumpingOver(nodep)) return;
 	if (!m_params) { badNodeType(nodep); return; }
     }
 
-    virtual void visit(AstSFormatF *nodep, AstNUser *) {
+    virtual void visit(AstScopeName *nodep) {
 	if (jumpingOver(nodep)) return;
+	if (!m_params) { badNodeType(nodep); return; }
+	// Ignore
+    }
+
+    virtual void visit(AstSFormatF *nodep) {
+	if (jumpingOver(nodep)) return;
+	if (!optimizable()) return;  // Accelerate
 	nodep->iterateChildren(*this);
 	if (m_params) {
 	    AstNode* nextArgp = nodep->exprsp();
@@ -731,11 +833,11 @@ private:
 		} else if (!inPct) {   // Normal text
 		    result += *pos;
 		} else { // Format character
-		    AstNode* argp = nextArgp;
 		    inPct = false;
-		    nextArgp = nextArgp->nextp();
 
 		    if (V3Number::displayedFmtLegal(tolower(pos[0]))) {
+			AstNode* argp = nextArgp;
+			nextArgp = nextArgp->nextp();
 			V3Number* nump = fetchNumberNull(argp);
 			if (!nump) {
 			    clearOptimizable(nodep, "Argument for $display like statement is not constant");
@@ -748,6 +850,10 @@ private:
 			case '%':
 			    result += "%";
 			    break;
+			case 'm':
+			    // This happens prior to AstScope so we don't know the scope name. Leave the %m in place.
+			    result += "%m";
+			    break;
 			default:
 			    clearOptimizable(nodep, "Unknown $display-like format code.");
 			    break;
@@ -755,27 +861,33 @@ private:
 		    }
 		}
 	    }
-	    nodep->text(result);
+
+	    V3Number* resultNump = new V3Number(V3Number::String(), nodep->fileline(), result);
+	    setNumber(nodep, resultNump);
+	    m_stringNumbersp.push_back(resultNump);
+
 	}
     }
 
-    virtual void visit(AstDisplay *nodep, AstNUser *) {
+    virtual void visit(AstDisplay *nodep) {
 	if (jumpingOver(nodep)) return;
+	if (!optimizable()) return;  // Accelerate
 	nodep->iterateChildren(*this);
 	if (m_params) {
+	    V3Number* textp = fetchNumber(nodep->fmtp());
 	    switch (nodep->displayType()) {
 	    case AstDisplayType::DT_DISPLAY:  // FALLTHRU
 	    case AstDisplayType::DT_INFO:
-		v3warn(USERINFO, nodep->fmtp()->text());
+		v3warn(USERINFO, textp->toString());
 		break;
 	    case AstDisplayType::DT_ERROR:
-		v3warn(USERERROR, nodep->fmtp()->text());
+		v3warn(USERERROR, textp->toString());
 		break;
 	    case AstDisplayType::DT_WARNING:
-		v3warn(USERWARN, nodep->fmtp()->text());
+		v3warn(USERWARN, textp->toString());
 		break;
 	    case AstDisplayType::DT_FATAL:
-		v3warn(USERFATAL, nodep->fmtp()->text());
+		v3warn(USERFATAL, textp->toString());
 		break;
 	    case AstDisplayType::DT_WRITE:  // FALLTHRU
 	    default:
@@ -788,7 +900,7 @@ private:
     // These types are definately not reducable
     //   AstCoverInc, AstArraySel, AstFinish,
     //   AstRand, AstTime, AstUCFunc, AstCCall, AstCStmt, AstUCStmt
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	if (jumpingOver(nodep)) return;
 	badNodeType(nodep);
     }
@@ -850,6 +962,10 @@ public:
 	for (deque<V3Number*>::iterator it = m_numAllps.begin(); it != m_numAllps.end(); ++it) {
 	    delete (*it);
 	}
+	for (deque<V3Number*>::iterator it = m_stringNumbersp.begin(); it != m_stringNumbersp.end(); ++it) {
+	    delete (*it);
+	}
+	m_stringNumbersp.clear();
 	m_numFreeps.clear();
 	m_numAllps.clear();
     }

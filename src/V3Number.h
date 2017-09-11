@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -45,7 +45,7 @@ class V3Number {
     // METHODS
     V3Number& setSingleBits(char value);
     V3Number& setString(const string& str) { m_isString=true; m_stringVal=str; return *this; }
-    void opCleanThis();
+    void opCleanThis(bool warnOnTruncation = false);
 public:
     FileLine*	fileline() const { return m_fileline; }
     void	fileline(FileLine* fl) { m_fileline=fl; }
@@ -327,6 +327,6 @@ public:
     V3Number& opLtN	(const V3Number& lhs, const V3Number& rhs);
     V3Number& opLteN	(const V3Number& lhs, const V3Number& rhs);
 };
-inline ostream& operator<<(ostream& os, V3Number rhs) { return os<<rhs.ascii(); }
+inline ostream& operator<<(ostream& os, const V3Number& rhs) { return os<<rhs.ascii(); }
 
 #endif // Guard

@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -75,7 +75,7 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNodeIf* nodep, AstNUser*) {
+    virtual void visit(AstNodeIf* nodep) {
 	UINFO(4," IF: "<<nodep<<endl);
 	int lastLikely = m_likely;
 	int lastUnlikely = m_unlikely;
@@ -101,17 +101,17 @@ private:
 	m_likely = lastLikely;
 	m_unlikely = lastUnlikely;
     }
-    virtual void visit(AstCCall* nodep, AstNUser*) {
+    virtual void visit(AstCCall* nodep) {
 	checkUnlikely(nodep);
 	nodep->funcp()->user1Inc();
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstCFunc* nodep, AstNUser*) {
+    virtual void visit(AstCFunc* nodep) {
 	checkUnlikely(nodep);
 	m_cfuncsp.push_back(nodep);
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	checkUnlikely(nodep);
 	nodep->iterateChildren(*this);
     }

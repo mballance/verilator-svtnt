@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -81,14 +81,14 @@ private:
     // See above
 
     // METHODS
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	VarFlags flags (nodep->varp());
 	if (flags.m_done) {
 	    nodep->hiername("");	// Remove thisp->
 	    nodep->hierThis(true);
 	}
     }
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 public:
@@ -141,7 +141,7 @@ private:
 		// We don't need to test for tracing; it would be in the tracefunc if it was needed
 		UINFO(4,"  ModVar->BlkVar "<<nodep<<endl);
 		++m_statLocVars;
-		AstCFunc* newfuncp = nodep->user1p()->castNode()->castCFunc();
+		AstCFunc* newfuncp = nodep->user1p()->castCFunc();
 		nodep->unlinkFrBack();
 		newfuncp->addInitsp(nodep);
 		// Done
@@ -155,11 +155,11 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNetlist* nodep, AstNUser*) {
+    virtual void visit(AstNetlist* nodep) {
 	nodep->iterateChildren(*this);
 	moveVars();
     }
-    virtual void visit(AstCFunc* nodep, AstNUser*) {
+    virtual void visit(AstCFunc* nodep) {
 	UINFO(4,"  CFUNC "<<nodep<<endl);
 	m_cfuncp = nodep;
 	searchFuncStmts(nodep->argsp());
@@ -190,7 +190,7 @@ private:
 	}
     }
 
-    virtual void visit(AstVar* nodep, AstNUser*) {
+    virtual void visit(AstVar* nodep) {
 	if (!nodep->isSigPublic()
 	    && !nodep->isPrimaryIO()
 	    && !m_cfuncp) {	// Not already inside a function
@@ -199,7 +199,7 @@ private:
 	}
 	// No iterate; Don't want varrefs under it
     }
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	if (!VarFlags(nodep->varp()).m_notOpt) {
 	    if (!m_cfuncp) {	// Not in function, can't optimize
 		clearOptimizable(nodep->varp(), "BVnofunc");
@@ -208,7 +208,7 @@ private:
 		// If we're scoping down to it, it isn't really in the same block
 		if (!nodep->hierThis()) clearOptimizable(nodep->varp(),"HierRef");
 		// Allow a variable to appear in only a single function
-		AstNode* oldfunc = nodep->varp()->user1p()->castNode();
+		AstNode* oldfunc = nodep->varp()->user1p();
 		if (!oldfunc) {
 		    UINFO(4,"      BVnewref "<<nodep<<endl);
 		    nodep->varp()->user1p(m_cfuncp); // Remember where it was used
@@ -228,7 +228,7 @@ private:
 	}
 	// No iterate; Don't want varrefs under it
     }
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 public:

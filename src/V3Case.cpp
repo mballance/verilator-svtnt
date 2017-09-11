@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -65,7 +65,7 @@ private:
 	return level;
     }
 
-    virtual void visit(AstNodeCase* nodep, AstNUser*) {
+    virtual void visit(AstNodeCase* nodep) {
 	if (nodep->castCase() && nodep->castCase()->casex()) {
 	    nodep->v3warn(CASEX,"Suggest casez (with ?'s) in place of casex (with X's)");
 	}
@@ -90,7 +90,7 @@ private:
 	    m_caseExprp = NULL;
 	}
     }
-    virtual void visit(AstConst* nodep, AstNUser*) {
+    virtual void visit(AstConst* nodep) {
 	// See also neverItem
 	if (m_caseExprp && nodep->num().isFourState()) {
 	    if (m_caseExprp->castGenCase()) {
@@ -107,7 +107,7 @@ private:
 	    }
 	}
     }
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 public:
@@ -174,7 +174,7 @@ private:
 	    for (AstNode* icondp = itemp->condsp(); icondp!=NULL; icondp=icondp->nextp()) {
 		//if (debug()>=9) icondp->dumpTree(cout," caseitem: ");
 		AstConst* iconstp = icondp->castConst();
-		if (!iconstp) nodep->v3fatalSrc("above 'can't parse' should have caught this\n");
+		if (!iconstp) nodep->v3fatalSrc("above 'can't parse' should have caught this");
 		if (neverItem(nodep, iconstp)) {
 		    // X in casez can't ever be executed
 		} else {
@@ -423,7 +423,7 @@ private:
 	// Handle any assertions
 	replaceCaseParallel(nodep, false);
 	// Replace the CASE... with IF...
-	if (debug()>=9) grouprootp->dumpTree(cout,"     _new: ");
+	if (debug()>=9 && grouprootp) grouprootp->dumpTree(cout,"     _new: ");
 	if (grouprootp) nodep->replaceWith(grouprootp);
 	else nodep->unlinkFrBack();
 	nodep->deleteTree(); VL_DANGLING(nodep);
@@ -451,7 +451,7 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstCase* nodep, AstNUser*) {
+    virtual void visit(AstCase* nodep) {
 	V3Case::caseLint(nodep);
 	nodep->iterateChildren(*this);
 	if (debug()>=9) nodep->dumpTree(cout," case_old: ");
@@ -467,7 +467,7 @@ private:
     }
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 

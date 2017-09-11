@@ -5,21 +5,39 @@
 
 module t (/*AUTOARG*/
    // Outputs
-   ign,
+   ign, ign2, ign3,
    // Inputs
    clk
    );
 
    input clk;
    output [31:0] ign;
+   output [3:0]  ign2;
+   output [11:0]  ign3;
+
+   parameter [95:0] P6 = 6;
+   localparam P64 = (1 << P6);
+
+   // verilator lint_off WIDTH
+   localparam [4:0] PBIG23 = 1'b1 << ~73'b0;
+   localparam [3:0] PBIG29 = 4'b1 << 33'h100000000;
+   // verilator lint_on WIDTH
 
    reg [31:0] 		right;
    reg [31:0] 		left;
-   reg [63:0] 		qright;
-   reg [63:0] 		qleft;
+   reg [P64-1:0] 	qright;
+   reg [P64-1:0] 	qleft;
    reg [31:0] 		amt;
 
    assign ign = {31'h0, clk} >>> 4'bx;  // bug760
+   assign ign2 = {amt[1:0] >> {22{amt[5:2]}}, amt[1:0] << (0 <<< amt[5:2])}; // bug1174
+   assign ign3 = {amt[1:0] >> {22{amt[5:2]}},
+		  amt[1:0] >> {11{amt[5:2]}},
+		  $signed(amt[1:0]) >>> {22{amt[5:2]}},
+		  $signed(amt[1:0]) >>> {11{amt[5:2]}},
+		  amt[1:0] << {22{amt[5:2]}},
+                  amt[1:0] << {11{amt[5:2]}}};
+
 
    always @* begin
       right = 32'h819b018a >> amt;
@@ -37,6 +55,7 @@ module t (/*AUTOARG*/
 `endif
 	 if (cyc==1) begin
 	    amt <= 32'd0;
+	    if (P64 != 64) $stop;
 	    if (5'b10110>>2  != 5'b00101) $stop;
 	    if (5'b10110>>>2 != 5'b00101) $stop;  // Note it cares about sign-ness
 	    if (5'b10110<<2  != 5'b11000) $stop;

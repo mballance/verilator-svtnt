@@ -1,12 +1,12 @@
 // -*- mode: C++; c-file-style: "cc-mode" -*-
 //*************************************************************************
-// DESCRIPTION: Verilator: Emit C++ code for module tree
+// DESCRIPTION: Verilator: Emit CFunc's for class construction and configuration
 //
 // Code available from: http://www.veripool.org/verilator
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -18,8 +18,8 @@
 //
 //*************************************************************************
 
-#ifndef _V3VARRESETS_H_
-#define _V3VARRESETS_H_ 1
+#ifndef _V3CCTORS_H_
+#define _V3CCTORS_H_ 1
 #include "config_build.h"
 #include "verilatedos.h"
 #include "V3Error.h"
@@ -27,9 +27,9 @@
 
 //============================================================================
 
-class V3VarResets {
+class V3CCtors {
 public:
-    static void emitResets();
+    static void cctorsAll();
 };
 
 

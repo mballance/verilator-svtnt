@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2004-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2004-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -90,15 +90,10 @@ public:
 		    if (v3Global.opt.coverage()) {
 			putMakeClassEntry(of, "verilated_cov.cpp");
 		    }
-		    if (v3Global.opt.systemPerl()) {
-			putMakeClassEntry(of, "Sp.cpp");  // Note Sp.cpp includes SpTraceVcdC
-		    }
-		    else {
-			if (v3Global.opt.trace()) {
-			    putMakeClassEntry(of, "verilated_vcd_c.cpp");
-			    if (v3Global.opt.systemC()) {
-				putMakeClassEntry(of, "verilated_vcd_sc.cpp");
-			    }
+		    if (v3Global.opt.trace()) {
+			putMakeClassEntry(of, "verilated_vcd_c.cpp");
+			if (v3Global.opt.systemC()) {
+			    putMakeClassEntry(of, "verilated_vcd_sc.cpp");
 			}
 		    }
 		}
@@ -106,7 +101,7 @@ public:
 		}
 		else {
 		    for (AstCFile* nodep = v3Global.rootp()->filesp(); nodep; nodep=nodep->nextp()->castCFile()) {
-			if (nodep->source() && nodep->slow()==slow && nodep->support()==support) {
+			if (nodep->source() && nodep->slow()==(slow!=0) && nodep->support()==(support!=0)) {
 			    putMakeClassEntry(of, nodep->name());
 			}
 		    }
@@ -139,22 +134,16 @@ public:
 	of.puts("PERL = "+V3Options::getenvPERL()+"\n");
 	of.puts("# Path to Verilator kit (from $VERILATOR_ROOT)\n");
 	of.puts("VERILATOR_ROOT = "+V3Options::getenvVERILATOR_ROOT()+"\n");
-	of.puts("# Path to SystemPerl kit top (from $SYSTEMPERL)\n");
-	of.puts("SYSTEMPERL = "+V3Options::getenvSYSTEMPERL()+"\n");
-	of.puts("# Path to SystemPerl kit includes (from $SYSTEMPERL_INCLUDE)\n");
-	of.puts("SYSTEMPERL_INCLUDE = "+V3Options::getenvSYSTEMPERL_INCLUDE()+"\n");
 	of.puts("# SystemC include directory with systemc.h (from $SYSTEMC_INCLUDE)\n");
 	of.puts(string("SYSTEMC_INCLUDE ?= ")+V3Options::getenvSYSTEMC_INCLUDE()+"\n");
 	of.puts("# SystemC library directory with libsystemc.a (from $SYSTEMC_LIBDIR)\n");
 	of.puts(string("SYSTEMC_LIBDIR ?= ")+V3Options::getenvSYSTEMC_LIBDIR()+"\n");
 
 	of.puts("\n### Switches...\n");
-	of.puts("# SystemPerl output mode?  0/1 (from --sp)\n");
-	of.puts(string("VM_SP = ")+(v3Global.opt.systemPerl()?"1":"0")+"\n");
 	of.puts("# SystemC output mode?  0/1 (from --sc)\n");
-	of.puts(string("VM_SC = ")+((v3Global.opt.systemC()&&!v3Global.opt.systemPerl())?"1":"0")+"\n");
-	of.puts("# SystemPerl or SystemC output mode?  0/1 (from --sp/--sc)\n");
-	of.puts(string("VM_SP_OR_SC = ")+(v3Global.opt.systemC()?"1":"0")+"\n");
+	of.puts(string("VM_SC = ")+((v3Global.opt.systemC())?"1":"0")+"\n");
+	of.puts("# Legacy or SystemC output mode?  0/1 (from --sc)\n");
+	of.puts(string("VM_SP_OR_SC = $(VM_SC)\n"));
 	of.puts("# Deprecated\n");
 	of.puts(string("VM_PCLI = ")+(v3Global.opt.systemC()?"0":"1")+"\n");
 	of.puts("# Deprecated: SystemC architecture to find link library path (from $SYSTEMC_ARCH)\n");
@@ -168,16 +157,16 @@ public:
 
 	of.puts("# User CFLAGS (from -CFLAGS on Verilator command line)\n");
 	of.puts("VM_USER_CFLAGS = \\\n");
-	const V3StringSet& cFlags = v3Global.opt.cFlags();
-	for (V3StringSet::const_iterator it = cFlags.begin(); it != cFlags.end(); ++it) {
+	const V3StringList& cFlags = v3Global.opt.cFlags();
+	for (V3StringList::const_iterator it = cFlags.begin(); it != cFlags.end(); ++it) {
 	    of.puts("\t"+*it+" \\\n");
 	}
 	of.puts("\n");
 
 	of.puts("# User LDLIBS (from -LDFLAGS on Verilator command line)\n");
 	of.puts("VM_USER_LDLIBS = \\\n");
-	const V3StringSet& ldLibs = v3Global.opt.ldLibs();
-	for (V3StringSet::const_iterator it = ldLibs.begin(); it != ldLibs.end(); ++it) {
+	const V3StringList& ldLibs = v3Global.opt.ldLibs();
+	for (V3StringList::const_iterator it = ldLibs.begin(); it != ldLibs.end(); ++it) {
 	    of.puts("\t"+*it+" \\\n");
 	}
 	of.puts("\n");
@@ -229,7 +218,7 @@ public:
     }
 
     //--------------------
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->v3fatalSrc("No visitors implemented.");
     }
 

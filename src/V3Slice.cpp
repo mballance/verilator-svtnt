@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -68,10 +68,10 @@ class SliceCloneVisitor : public AstNVisitor {
     }
 
     // VISITORS
-    virtual void visit(AstArraySel* nodep, AstNUser*) {
+    virtual void visit(AstArraySel* nodep) {
 	if (!nodep->backp()->castArraySel()) {
 	    // This is the top of an ArraySel, setup for iteration
-	    m_refp = nodep->user1p()->castNode()->castVarRef();
+	    m_refp = nodep->user1p()->castVarRef();
 	    m_vecIdx += 1;
 	    if (m_vecIdx == (int)m_selBits.size()) {
 		m_selBits.push_back(vector<unsigned>());
@@ -118,7 +118,7 @@ class SliceCloneVisitor : public AstNVisitor {
 	nodep->length(1);
     }
 
-    virtual void visit(AstNodeAssign* nodep, AstNUser*) {
+    virtual void visit(AstNodeAssign* nodep) {
 	if (nodep->user2() < 2) return; // Don't need clones
 	m_selBits.clear();
 	UINFO(4, "Cloning "<<nodep->user2()<<" times: "<<nodep<<endl);
@@ -139,52 +139,49 @@ class SliceCloneVisitor : public AstNVisitor {
 	UINFO(4, "Cloning "<<nodep->user2()<<" times: "<<nodep<<endl);
 
 	AstNode* lhsp = NULL;
-	AstNode* rhsp = NULL;
 	for (int i = 0; i < nodep->user2(); ++i) {
 	    // Clone the node and iterate over the clone
 	    m_vecIdx = -1;
 	    AstNodeUniop* clonep = nodep->cloneTree(false)->castNodeUniop();
 	    clonep->iterateChildren(*this);
 	    if (!lhsp) lhsp = clonep;
-	    else rhsp = clonep;
-	    if (lhsp && rhsp) {
+	    else {
 		switch (nodep->type()) {
-		case AstType::atREDOR:
-		    lhsp = new AstOr(nodep->fileline(), lhsp, rhsp);
+		case AstType::atRedOr:
+		    lhsp = new AstOr(nodep->fileline(), lhsp, clonep);
 		    break;
-		case AstType::atREDAND:
-		    lhsp = new AstAnd(nodep->fileline(), lhsp, rhsp);
+		case AstType::atRedAnd:
+		    lhsp = new AstAnd(nodep->fileline(), lhsp, clonep);
 		    break;
-		case AstType::atREDXOR:
-		    lhsp = new AstXor(nodep->fileline(), lhsp, rhsp);
+		case AstType::atRedXor:
+		    lhsp = new AstXor(nodep->fileline(), lhsp, clonep);
 		    break;
-		case AstType::atREDXNOR:
-		    lhsp = new AstXnor(nodep->fileline(), lhsp, rhsp);
+		case AstType::atRedXnor:
+		    lhsp = new AstXnor(nodep->fileline(), lhsp, clonep);
 		    break;
 		default:
 		    nodep->v3fatalSrc("Unsupported: Unary operation on multiple packed dimensions");
 		    break;
 		}
-		rhsp = NULL;
 	    }
 	}
-	nodep->addNextHere(lhsp);
-	nodep->unlinkFrBack()->deleteTree(); VL_DANGLING(nodep);
+	nodep->replaceWith(lhsp);
+	nodep->deleteTree(); VL_DANGLING(nodep);
     }
-    virtual void visit(AstRedOr* nodep, AstNUser*) {
+    virtual void visit(AstRedOr* nodep) {
 	cloneUniop(nodep);
     }
-    virtual void visit(AstRedAnd* nodep, AstNUser*) {
+    virtual void visit(AstRedAnd* nodep) {
 	cloneUniop(nodep);
     }
-    virtual void visit(AstRedXor* nodep, AstNUser*) {
+    virtual void visit(AstRedXor* nodep) {
 	cloneUniop(nodep);
     }
-    virtual void visit(AstRedXnor* nodep, AstNUser*) {
+    virtual void visit(AstRedXnor* nodep) {
 	cloneUniop(nodep);
     }
 
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	// Default: Just iterate
 	nodep->iterateChildren(*this);
     }
@@ -262,7 +259,7 @@ class SliceVisitor : public AstNVisitor {
 	// Insert any implicit slices as explicit slices (ArraySel nodes).
 	// Return a new pointer to replace nodep() in the ArraySel.
 	UINFO(9,"  insertImplicit (startDim="<<startDim<<",c="<<numDimensions<<") "<<nodep<<endl);
-	AstVarRef* refp = nodep->user1p()->castNode()->castVarRef();
+	AstVarRef* refp = nodep->user1p()->castVarRef();
 	if (!refp) nodep->v3fatalSrc("No VarRef in user1 of node "<<nodep);
 	AstVar* varp = refp->varp();
 	AstNode* topp = nodep;
@@ -292,7 +289,7 @@ class SliceVisitor : public AstNVisitor {
     }
 
     // VISITORS
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	// The LHS/RHS of an Assign may be to a Var that is an array. In this
 	// case we need to create a slice across the entire Var
 	if (m_assignp && !nodep->backp()->castArraySel()) {
@@ -308,7 +305,7 @@ class SliceVisitor : public AstNVisitor {
 	}
     }
 
-    virtual void visit(AstExtend* nodep, AstNUser*) {
+    virtual void visit(AstExtend* nodep) {
 	m_extend = true;
 	if (m_assignp && m_assignp->user2() > 1 && !m_assignError) {
 	    m_assignp->v3error("Unsupported: Assignment between unpacked arrays of different dimensions");
@@ -317,7 +314,7 @@ class SliceVisitor : public AstNVisitor {
 	nodep->iterateChildren(*this);
     }
 
-    virtual void visit(AstConst* nodep, AstNUser*) {
+    virtual void visit(AstConst* nodep) {
 	m_extend = true;
 	if (m_assignp && m_assignp->user2() > 1 && !m_assignError) {
 	    m_assignp->v3error("Unsupported: Assignment between a constant and an array slice");
@@ -325,11 +322,11 @@ class SliceVisitor : public AstNVisitor {
 	}
     }
 
-    virtual void visit(AstArraySel* nodep, AstNUser*) {
+    virtual void visit(AstArraySel* nodep) {
 	if (!m_assignp) return;
 	if (nodep->user3()) return;  // Prevent recursion on just created nodes
 	unsigned dim = explicitDimensions(nodep);
-	AstVarRef* refp = nodep->user1p()->castNode()->castVarRef();
+	AstVarRef* refp = nodep->user1p()->castVarRef();
 	pair<uint32_t,uint32_t> arrDim = refp->varp()->dtypep()->dimensions(false);
 	uint32_t implicit = (arrDim.second) - dim;
 	if (implicit > 0) {
@@ -355,7 +352,7 @@ class SliceVisitor : public AstNVisitor {
 	}
     }
 
-    virtual void visit(AstSel* nodep, AstNUser*) {
+    virtual void visit(AstSel* nodep) {
 	m_extend = true;
 	if (m_assignp && m_assignp->user2() > 1 && !m_assignError) {
 	    m_assignp->v3error("Unsupported: Assignment between unpacked arrays of different dimensions");
@@ -364,7 +361,7 @@ class SliceVisitor : public AstNVisitor {
 	nodep->iterateChildren(*this);
     }
 
-    virtual void visit(AstNodeCond* nodep, AstNUser*) {
+    virtual void visit(AstNodeCond* nodep) {
 	// The conditional must be a single bit so only look at the expressions
 	nodep->expr1p()->accept(*this);
 	nodep->expr2p()->accept(*this);
@@ -415,7 +412,7 @@ class SliceVisitor : public AstNVisitor {
 	m_assignp = NULL;
     }
 
-    virtual void visit(AstNodeAssign* nodep, AstNUser*) {
+    virtual void visit(AstNodeAssign* nodep) {
 	if (!nodep->user1()) {
 	    // Cleanup initArrays
 	    if (AstInitArray* initp = nodep->rhsp()->castInitArray()) {
@@ -441,46 +438,96 @@ class SliceVisitor : public AstNVisitor {
     }
 
     void expandUniOp(AstNodeUniop* nodep) {
-	nodep->user1(true);
-	unsigned dim = 0;
-	if (AstArraySel* selp = nodep->lhsp()->castArraySel()) {
-	    // We have explicit dimensions, either packed or unpacked
-	    dim = explicitDimensions(selp);
-	}
-	if (dim == 0 && !nodep->lhsp()->castVarRef()) {
-	    // No ArraySel nor VarRef, not something we can expand
-	    nodep->iterateChildren(*this);
-	} else {
-	    AstVarRef* refp = findVarRefRecurse(nodep->lhsp());
-	    ArrayDimensions varDim = refp->varp()->dtypep()->dimensions(false);
-	    if ((int)(dim - varDim.second) < 0) {
-		// Unpacked dimensions are referenced first, make sure we have them all
-		nodep->v3error("Unary operator used across unpacked dimensions");
+	if (!nodep->user1()) {
+	    nodep->user1(true);
+	    unsigned dim = 0;
+	    if (AstArraySel* selp = nodep->lhsp()->castArraySel()) {
+		// We have explicit dimensions, either packed or unpacked
+		dim = explicitDimensions(selp);
+	    }
+	    if (dim == 0 && !nodep->lhsp()->castVarRef()) {
+		// No ArraySel nor VarRef, not something we can expand
+		nodep->iterateChildren(*this);
+	    } else {
+		AstVarRef* refp = findVarRefRecurse(nodep->lhsp());
+		ArrayDimensions varDim = refp->varp()->dtypep()->dimensions(false);
+		if ((int)(dim - varDim.second) < 0) {
+		    // Unpacked dimensions are referenced first, make sure we have them all
+		    nodep->v3error("Unary operator used across unpacked dimensions");
+		}
 	    }
 	}
     }
-    virtual void visit(AstRedOr* nodep, AstNUser*) {
-	if (!nodep->user1()) {
-	    expandUniOp(nodep);
-	}
+    virtual void visit(AstRedOr* nodep) {
+	expandUniOp(nodep);
     }
-    virtual void visit(AstRedAnd* nodep, AstNUser*) {
-	if (!nodep->user1()) {
-	    expandUniOp(nodep);
-	}
+    virtual void visit(AstRedAnd* nodep) {
+	expandUniOp(nodep);
     }
-    virtual void visit(AstRedXor* nodep, AstNUser*) {
-	if (!nodep->user1()) {
-	    expandUniOp(nodep);
-	}
+    virtual void visit(AstRedXor* nodep) {
+	expandUniOp(nodep);
     }
-    virtual void visit(AstRedXnor* nodep, AstNUser*) {
-	if (!nodep->user1()) {
-	    expandUniOp(nodep);
-	}
+    virtual void visit(AstRedXnor* nodep) {
+	expandUniOp(nodep);
     }
 
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    void expandBiOp(AstNodeBiop* nodep) {
+	if (!nodep->user1()) {
+	    nodep->user1(true);
+	    // If it's a unpacked array, blow it up into comparing each element
+	    AstNodeDType* fromDtp = nodep->lhsp()->dtypep()->skipRefp();
+	    UINFO(9, "  Bi-Eq/Neq expansion "<<nodep<<endl);
+	    if (AstUnpackArrayDType* adtypep = fromDtp->castUnpackArrayDType()) {
+		AstNodeBiop* logp = NULL;
+		for (int index = adtypep->rangep()->lsbConst();
+		     index <= adtypep->rangep()->msbConst(); ++index) {
+		    // EQ(a,b) -> LOGAND(EQ(ARRAYSEL(a,0), ARRAYSEL(b,0)), ...[1])
+		    AstNodeBiop* clonep = nodep->cloneType
+			(new AstArraySel(nodep->fileline(),
+					 nodep->lhsp()->cloneTree(false),
+					 index),
+			 new AstArraySel(nodep->fileline(),
+					 nodep->rhsp()->cloneTree(false),
+					 index))->castNodeBiop();
+		    if (!logp) logp = clonep;
+		    else {
+			switch (nodep->type()) {
+			case AstType::atEq:  // FALLTHRU
+			case AstType::atEqCase:
+			    logp = new AstLogAnd(nodep->fileline(), logp, clonep);
+			    break;
+			case AstType::atNeq:  // FALLTHRU
+			case AstType::atNeqCase:
+			    logp = new AstLogOr(nodep->fileline(), logp, clonep);
+			    break;
+			default:
+			    nodep->v3fatalSrc("Unknown node type processing array slice");
+			    break;
+			}
+		    }
+		}
+		if (!logp) nodep->v3fatalSrc("Unpacked array with empty indices range");
+		nodep->replaceWith(logp);
+		pushDeletep(nodep); VL_DANGLING(nodep);
+		nodep = logp;
+	    }
+	    nodep->iterateChildren(*this);
+	}
+    }
+    virtual void visit(AstEq* nodep) {
+	expandBiOp(nodep);
+    }
+    virtual void visit(AstNeq* nodep) {
+	expandBiOp(nodep);
+    }
+    virtual void visit(AstEqCase* nodep) {
+	expandBiOp(nodep);
+    }
+    virtual void visit(AstNeqCase* nodep) {
+	expandBiOp(nodep);
+    }
+
+    virtual void visit(AstNode* nodep) {
 	// Default: Just iterate
 	nodep->iterateChildren(*this);
     }

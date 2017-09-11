@@ -7,7 +7,7 @@
 #
 #*****************************************************************************
 #
-# Copyright 2003-2016 by Wilson Snyder. This program is free software; you can
+# Copyright 2003-2017 by Wilson Snyder. This program is free software; you can
 # redistribute it and/or modify it under the terms of either the GNU
 # Lesser General Public License Version 3 or the Perl Artistic License
 # Version 2.0.
@@ -42,9 +42,6 @@
 #      reconstructed with this Makefile.  This typically includes
 #      everything deleted by distclean, plus more: C source files
 #      produced by Bison, tags tables, info files, and so on.
-#
-# make extraclean
-#      Still more severe - delete backup and autosave files, too.
 
 #### Start of system configuration section. ####
 
@@ -71,7 +68,7 @@ exec_prefix = @exec_prefix@
 # Directory in which to install scripts.
 bindir = @bindir@
 
-# Directory in which to install scripts.
+# Directory in which to install manpages.
 mandir = @mandir@
 
 # Directory in which to install library files.
@@ -135,6 +132,8 @@ DISTFILES_INC = $(INFOS) .gitignore Artistic COPYING COPYING.LESSER \
 	test_verilated/vgen*.pl \
 	test_regress/t/t*/*.sv* \
 	test_regress/t/t*/*.v* \
+	test_regress/t/t*/*/*.sv* \
+	test_regress/t/t*/*/*.v* \
 	test_regress/t/*.cpp \
 	test_regress/t/*.h \
 	test_regress/t/*.dat \
@@ -273,6 +272,7 @@ VL_INST_BIN_FILES = verilator verilator_bin verilator_bin_dbg verilator_coverage
 VL_INST_MAN_FILES = verilator.1 verilator_coverage.1 verilator_profcfunc.1
 
 VL_INST_INC_BLDDIR_FILES = \
+	include/verilated_config.h \
 	include/verilated.mk \
 
 # Files under srcdir, instead of build time
@@ -300,7 +300,8 @@ installbin:
 # So important we use $< so VPATH is searched
 installman: $(VL_INST_MAN_FILES)
 	$(SHELL) ${srcdir}/mkinstalldirs $(DESTDIR)$(mandir)/man1
-	for p in $^ ; do \
+	cd $(srcdir) \
+	; for p in $(VL_INST_MAN_FILES) ; do \
 	  $(INSTALL_DATA) $$p $(DESTDIR)$(mandir)/man1/$$p; \
 	done
 

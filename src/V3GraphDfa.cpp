@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2005-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2005-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -44,7 +44,7 @@ DfaVertex* DfaGraph::findStart() {
 		startp = vvertexp;
 	    }
 	} else {
-	    v3fatalSrc("Non DfaVertex in DfaGraph\n");
+	    v3fatalSrc("Non DfaVertex in DfaGraph");
 	}
     }
     if (!startp) v3fatalSrc("No start point in NFA graph");
@@ -194,7 +194,7 @@ private:
 		// Foreach input transition (on this nfaStatep)
 		for (V3GraphEdge* nfaEdgep = nfaStatep->outBeginp(); nfaEdgep; nfaEdgep=nfaEdgep->outNextp()) {
 		    DfaEdge* cNfaEdgep = static_cast<DfaEdge*>(nfaEdgep);
-		    if (cNfaEdgep->input() == input) {
+		    if (cNfaEdgep->input().toNodep() == input.toNodep()) {
 			DfaVertex* nextStatep = static_cast<DfaVertex*>(cNfaEdgep->top());
 			if (unseenNfaThisStep(nextStatep)) {  // Not processed?
 			    nfasWithInput.push_back(nextStatep);
@@ -275,7 +275,7 @@ private:
 	    UINFO(9,"  On dfaState "<<dfaStatep<<endl);
 
 	    // From this dfaState, what corresponding nfaStates have what inputs?
-	    set<DfaInput> inputs;
+	    set<int> inputs;
 	    // Foreach NFA state (this DFA state was formed from)
 	    for (V3GraphEdge* dfaEdgep = dfaStatep->outBeginp(); dfaEdgep; dfaEdgep=dfaEdgep->outNextp()) {
 		if (nfaState(dfaEdgep->top())) {
@@ -284,9 +284,9 @@ private:
 		    for (V3GraphEdge* nfaEdgep = nfaStatep->outBeginp(); nfaEdgep; nfaEdgep=nfaEdgep->outNextp()) {
 			DfaEdge* cNfaEdgep = static_cast<DfaEdge*>(nfaEdgep);
 			if (!cNfaEdgep->epsilon()) {
-			    if (inputs.find(cNfaEdgep->input()) == inputs.end()) {
-				inputs.insert(cNfaEdgep->input());
-				UINFO(9,"    Input to "<<dfaStatep<<" is "<<(void*)(cNfaEdgep->input())<<" via "<<nfaStatep<<endl);
+			    if (inputs.find(cNfaEdgep->input().toInt()) == inputs.end()) {
+				inputs.insert(cNfaEdgep->input().toInt());
+				UINFO(9,"    Input to "<<dfaStatep<<" is "<<(cNfaEdgep->input().toInt())<<" via "<<nfaStatep<<endl);
 			    }
 			}
 		    }
@@ -294,10 +294,10 @@ private:
 	    }
 
 	    // Foreach input state (NFA inputs of this DFA state)
-	    for (set<DfaInput>::const_iterator inIt=inputs.begin(); inIt!=inputs.end(); ++inIt) {
+	    for (set<int>::const_iterator inIt=inputs.begin(); inIt!=inputs.end(); ++inIt) {
 		DfaInput input = *inIt;
 		UINFO(9,"    ==="<<++i<<"=======================\n");
-		UINFO(9,"    On input "<<(void*)(input)<<endl);
+		UINFO(9,"    On input "<<(void*)(input.toNodep())<<endl);
 
 		// Find all states reachable for given input
 		DfaStates nfasWithInput;
@@ -520,7 +520,7 @@ private:
 		}
 	    }
 	}
-	if (!acceptp) v3fatalSrc("No accepting vertex in DFA\n");
+	if (!acceptp) v3fatalSrc("No accepting vertex in DFA");
 
 	// Remap edges
 	for (V3GraphVertex* vertexp = m_graphp->verticesBeginp(); vertexp; vertexp=vertexp->verticesNextp()) {

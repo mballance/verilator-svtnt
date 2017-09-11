@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2000-2016 by Wilson Snyder.  This program is free software;
+// Copyright 2000-2017 by Wilson Snyder.  This program is free software;
 // you can redistribute it and/or modify it under the terms of either the
 // GNU Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -90,8 +90,8 @@ public:
     virtual string removeDefines(const string& text)=0;	// Remove defines in a text string
 
     // UTILITIES
-    void error(string msg) { fileline()->v3error(msg); }	///< Report a error
-    void fatal(string msg) { fileline()->v3fatalSrc(msg); }	///< Report a fatal error
+    void error(const string& msg) { fileline()->v3error(msg); }	///< Report a error
+    void fatal(const string& msg) { fileline()->v3fatalSrc(msg); }	///< Report a fatal error
 
 protected:
     // CONSTUCTORS

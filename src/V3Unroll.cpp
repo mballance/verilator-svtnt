@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -269,6 +269,7 @@ private:
 		     AstNode* condp,
 		     AstNode* precondsp,
 		     AstNode* incp, AstNode* bodysp) {
+	UINFO(9, "forUnroller "<<nodep<<endl);
 	V3Number loopValue = V3Number(nodep->fileline());
 	if (!simulateTree(initp->rhsp(), NULL, initp, loopValue)) {
 	    return false;
@@ -354,11 +355,11 @@ private:
 	if (precondsp) { pushDeletep(precondsp); VL_DANGLING(precondsp); }
 	if (initp) { pushDeletep(initp); VL_DANGLING(initp); }
 	if (incp && !incp->backp()) { pushDeletep(incp); VL_DANGLING(incp); }
-	if (debug()>=9) newbodysp->dumpTree(cout,"-  _new: ");
+	if (debug()>=9 && newbodysp) newbodysp->dumpTree(cout,"-  _new: ");
 	return true;
     }
 
-    virtual void visit(AstWhile* nodep, AstNUser*) {
+    virtual void visit(AstWhile* nodep) {
 	nodep->iterateChildren(*this);
 	if (m_varModeCheck || m_varModeReplace) {
 	} else {
@@ -387,7 +388,7 @@ private:
 	    }
 	}
     }
-    virtual void visit(AstGenFor* nodep, AstNUser*) {
+    virtual void visit(AstGenFor* nodep) {
 	if (!m_generate || m_varModeReplace) {
 	    nodep->iterateChildren(*this);
 	}  // else V3Param will recursively call each for loop to be unrolled for us
@@ -415,7 +416,7 @@ private:
 	    }
 	}
     }
-    virtual void visit(AstNodeFor* nodep, AstNUser*) {
+    virtual void visit(AstNodeFor* nodep) {
 	if (m_generate) {  // Ignore for's when expanding genfor's
 	    nodep->iterateChildren(*this);
 	} else {
@@ -423,7 +424,7 @@ private:
 	}
     }
 
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	if (m_varModeCheck
 	    && nodep->varp() == m_forVarp
 	    && nodep->varScopep() == m_forVscp
@@ -444,7 +445,7 @@ private:
 
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	if (m_varModeCheck && nodep == m_ignoreIncp) {
 	    // Ignore subtree that is the increment
 	} else {

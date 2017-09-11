@@ -7,7 +7,7 @@
 #
 #*****************************************************************************
 #
-# Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+# Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 # redistribute it and/or modify it under the terms of either the GNU
 # Lesser General Public License Version 3 or the Perl Artistic License
 # Version 2.0.
@@ -105,12 +105,6 @@ endif
 CPPFLAGSWALL   = $(CPPFLAGS)
 CPPFLAGSPARSER = $(CPPFLAGS) $(CFG_CXXFLAGS_PARSER)
 
-ifneq ($(SYSTEMPERL),)	# Intuit SYSTEMPERL_INCLUDE as it's new
- SYSTEMPERL_INCLUDE ?= $(SYSTEMPERL)/src
-#else if set, leave as-is.
-#else if SYSTEMPERL="" don't set _INCLUDE so source will figure it out
-endif
-
 # Allow RPM builds to specify hardcoded data directories
 # To do this:
 ifeq ($(CFG_WITH_DEFENV),yes)
@@ -118,8 +112,6 @@ ifeq ($(CFG_WITH_DEFENV),yes)
  CPPFLAGS += -DDEFENV_SYSTEMC_ARCH=\"$(SYSTEMC_ARCH)\"
  CPPFLAGS += -DDEFENV_SYSTEMC_INCLUDE=\"$(SYSTEMC_INCLUDE)\"
  CPPFLAGS += -DDEFENV_SYSTEMC_LIBDIR=\"$(SYSTEMC_LIBDIR)\"
- CPPFLAGS += -DDEFENV_SYSTEMPERL=\"$(SYSTEMPERL)\"
- CPPFLAGS += -DDEFENV_SYSTEMPERL_INCLUDE=\"$(SYSTEMPERL_INCLUDE)\"
  ifeq ($(VERILATOR_ROOT),)	# Use what we're given, or intuit
   CPPFLAGS += -DDEFENV_VERILATOR_ROOT=\"$(pkgdatadir)\"
  else
@@ -166,6 +158,7 @@ RAW_OBJS = \
 	V3Begin.o \
 	V3Branch.o \
 	V3Broken.o \
+	V3CCtors.o \
 	V3Case.o \
 	V3Cast.o \
 	V3Cdc.o \
@@ -237,7 +230,6 @@ RAW_OBJS = \
 	V3Undriven.o \
 	V3Unknown.o \
 	V3Unroll.o \
-	V3VarResets.o \
 	V3Width.o \
 	V3WidthSel.o \
 
@@ -302,7 +294,7 @@ serial:: V3Ast__gen_classes.h V3ParseBison.c
 
 serial_vlcov:: vlcovgen.d
 
-vlcovgen.d: $(VLCOVGEN) $(srcdir)/include/verilated_cov_key.h
+vlcovgen.d: $(VLCOVGEN) $(srcdir)/../include/verilated_cov_key.h
 	$(PERL) $(VLCOVGEN) --srcdir $(srcdir)
 	touch $@
 

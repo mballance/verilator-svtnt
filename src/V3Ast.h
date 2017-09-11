@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -61,7 +61,7 @@ public:
   inline bool operator== (AstType lhs, AstType rhs) { return (lhs.m_e == rhs.m_e); }
   inline bool operator== (AstType lhs, AstType::en rhs) { return (lhs.m_e == rhs); }
   inline bool operator== (AstType::en lhs, AstType rhs) { return (lhs == rhs.m_e); }
-  inline ostream& operator<<(ostream& os, AstType rhs) { return os<<rhs.ascii(); }
+  inline ostream& operator<<(ostream& os, const AstType& rhs) { return os<<rhs.ascii(); }
 
 //######################################################################
 
@@ -107,7 +107,7 @@ public:
   inline bool operator== (AstNumeric lhs, AstNumeric rhs) { return (lhs.m_e == rhs.m_e); }
   inline bool operator== (AstNumeric lhs, AstNumeric::en rhs) { return (lhs.m_e == rhs); }
   inline bool operator== (AstNumeric::en lhs, AstNumeric rhs) { return (lhs == rhs.m_e); }
-  inline ostream& operator<<(ostream& os, AstNumeric rhs) { return os<<rhs.ascii(); }
+  inline ostream& operator<<(ostream& os, const AstNumeric& rhs) { return os<<rhs.ascii(); }
 
 //######################################################################
 
@@ -396,7 +396,7 @@ public:
 	return (m_e==LOGIC || m_e==BIT);
     }
     bool isDpiUnsupported() const {
-	return (m_e==LOGIC || m_e==TIME);
+	return (m_e==TIME);
     }
     bool isDpiUnsignable() const {  // Can add "unsigned" to DPI
 	return (m_e==BYTE || m_e==SHORTINT || m_e==INT || m_e==LONGINT || m_e==INTEGER);
@@ -427,6 +427,7 @@ public:
 	SUPPLY0,
 	SUPPLY1,
 	WIRE,
+	WREAL,
 	IMPLICITWIRE,
 	TRIWIRE,
 	TRI0,
@@ -448,13 +449,13 @@ public:
 	static const char* names[] = {
 	    "?","GPARAM","LPARAM","GENVAR",
 	    "VAR","INPUT","OUTPUT","INOUT",
-	    "SUPPLY0","SUPPLY1","WIRE","IMPLICITWIRE",
+	    "SUPPLY0","SUPPLY1","WIRE","WREAL","IMPLICITWIRE",
 	    "TRIWIRE","TRI0","TRI1",
 	    "PORT",
 	    "BLOCKTEMP","MODULETEMP","STMTTEMP","XTEMP",
 	    "IFACEREF"};
 	return names[m_e]; }
-    bool isSignal() const  { return (m_e==WIRE || m_e==IMPLICITWIRE
+    bool isSignal() const  { return (m_e==WIRE || m_e==WREAL || m_e==IMPLICITWIRE
 				     || m_e==TRIWIRE
 				     || m_e==TRI0 || m_e==TRI1
 				     || m_e==SUPPLY0 || m_e==SUPPLY1
@@ -463,7 +464,7 @@ public:
   inline bool operator== (AstVarType lhs, AstVarType rhs) { return (lhs.m_e == rhs.m_e); }
   inline bool operator== (AstVarType lhs, AstVarType::en rhs) { return (lhs.m_e == rhs); }
   inline bool operator== (AstVarType::en lhs, AstVarType rhs) { return (lhs == rhs.m_e); }
-  inline ostream& operator<<(ostream& os, AstVarType rhs) { return os<<rhs.ascii(); }
+  inline ostream& operator<<(ostream& os, const AstVarType& rhs) { return os<<rhs.ascii(); }
 
 //######################################################################
 
@@ -495,7 +496,7 @@ public:
   inline bool operator== (AstBranchPred lhs, AstBranchPred rhs) { return (lhs.m_e == rhs.m_e); }
   inline bool operator== (AstBranchPred lhs, AstBranchPred::en rhs) { return (lhs.m_e == rhs); }
   inline bool operator== (AstBranchPred::en lhs, AstBranchPred rhs) { return (lhs == rhs.m_e); }
-  inline ostream& operator<<(ostream& os, AstBranchPred rhs) { return os<<rhs.ascii(); }
+  inline ostream& operator<<(ostream& os, const AstBranchPred& rhs) { return os<<rhs.ascii(); }
 
 //######################################################################
 
@@ -528,7 +529,7 @@ public:
   inline bool operator== (AstVarAttrClocker lhs, AstVarAttrClocker rhs) { return (lhs.m_e == rhs.m_e); }
   inline bool operator== (AstVarAttrClocker lhs, AstVarAttrClocker::en rhs) { return (lhs.m_e == rhs); }
   inline bool operator== (AstVarAttrClocker::en lhs, AstVarAttrClocker rhs) { return (lhs == rhs.m_e); }
-  inline ostream& operator<<(ostream& os, AstVarAttrClocker rhs) { return os<<rhs.ascii(); }
+  inline ostream& operator<<(ostream& os, const AstVarAttrClocker& rhs) { return os<<rhs.ascii(); }
 
 //######################################################################
 
@@ -627,7 +628,7 @@ public:
   inline bool operator== (AstParseRefExp lhs, AstParseRefExp rhs) { return (lhs.m_e == rhs.m_e); }
   inline bool operator== (AstParseRefExp lhs, AstParseRefExp::en rhs) { return (lhs.m_e == rhs); }
   inline bool operator== (AstParseRefExp::en lhs, AstParseRefExp rhs) { return (lhs == rhs.m_e); }
-  inline ostream& operator<<(ostream& os, AstParseRefExp rhs) { return os<<rhs.ascii(); }
+  inline ostream& operator<<(ostream& os, const AstParseRefExp& rhs) { return os<<rhs.ascii(); }
 
 //######################################################################
 // VNumRange - Structure containing numberic range information
@@ -679,7 +680,7 @@ struct VNumRange {
 	{ return (!m_ranged || (m_lo==0 && m_hi>=1 && !m_littleEndian)); }
     void dump(ostream& str) const { if (ranged()) str<<"["<<left()<<":"<<right()<<"]"; else str<<"[norg]"; }
 };
-inline ostream& operator<<(ostream& os, VNumRange rhs) { rhs.dump(os); return os; }
+inline ostream& operator<<(ostream& os, const VNumRange& rhs) { rhs.dump(os); return os; }
 
 //######################################################################
 
@@ -708,14 +709,14 @@ struct VBasicTypeKey {
 	if (!(m_nrange == rhs.m_nrange)) return false;  // lhs > rhs
 	return false; }
     VBasicTypeKey(int width, int widthMin, AstNumeric numeric, AstBasicDTypeKwd kwd,
-	     VNumRange nrange)
+		  const VNumRange& nrange)
 	: m_width(width), m_widthMin(widthMin), m_numeric(numeric),
 	  m_keyword(kwd), m_nrange(nrange) {}
     ~VBasicTypeKey() {}
 };
 
 //######################################################################
-// AstNUser - Generic pointer base class for AST User nodes.
+// AstNUser - Generic base class for AST User nodes.
 //	    - Also used to allow parameter passing up/down iterate calls
 
 class WidthVP;
@@ -724,26 +725,31 @@ class OrderBlockNU;
 class OrderVarNU;
 class V3GraphVertex;
 class VSymEnt;
-struct AstNUser {
-    AstNUser*	p() { return this; }	// So can take address of temporary: iterate(...,AstNUser(args).p())
+
+class VNUser {
+    union {
+	void* up;
+	int ui;
+    } m_u;
+public:
+    VNUser() {}
+    // non-explicit:
+    VNUser(int i) { m_u.up = 0; m_u.ui = i; }
+    explicit VNUser(void* p) { m_u.up = p; }
+    ~VNUser() {}
     // Casters
-    WidthVP*	c() { return ((WidthVP*)this); }
-    LinkVP*	castLinkVP() { return ((LinkVP*)this); }
-    VSymEnt*	castSymEnt() { return ((VSymEnt*)this); }
-    AstNode*	castNode() { return ((AstNode*)this); }
-    OrderBlockNU* castOrderBlock() { return ((OrderBlockNU*)this); }
-    OrderVarNU*	castOrderVar() { return ((OrderVarNU*)this); }
-    V3GraphVertex* castGraphVertex() { return ((V3GraphVertex*)this); }
-    inline int	castInt() {
-	union { AstNUser* up; int ui; } u;
-	u.up = this;
-	return u.ui;
+    WidthVP*	c() { return ((WidthVP*)m_u.up); }
+    LinkVP*	toLinkVP() { return ((LinkVP*)m_u.up); }
+    VSymEnt*	toSymEnt() { return ((VSymEnt*)m_u.up); }
+    AstNode*	toNodep() { return ((AstNode*)m_u.up); }
+    OrderBlockNU* toOrderBlock() { return ((OrderBlockNU*)m_u.up); }
+    OrderVarNU*	toOrderVar() { return ((OrderVarNU*)m_u.up); }
+    V3GraphVertex* toGraphVertex() { return ((V3GraphVertex*)m_u.up); }
+    inline int	toInt() {
+	return m_u.ui;
     }
-    static inline AstNUser* fromInt (int i) {
-	union { AstNUser* up; int ui; } u;
-	u.up=0; u.ui=i;
-	return u.up;
-    }
+    static inline VNUser fromZero () { return VNUser(0); }
+    static inline VNUser fromInt (int i) { return VNUser(i); }
 };
 
 //######################################################################
@@ -862,8 +868,8 @@ public:
     }
 #include "V3Ast__gen_visitor.h"	// From ./astgen
     // Things like:
-    //  virtual void visit(AstBreak* nodep, AstNUser* vup) { visit((AstNodeStmt*)(nodep),vup); }
-    //  virtual void visit(AstNodeStmt* nodep, AstNUser* vup) { visit((AstNode*)(nodep),vup); }
+    //  virtual void visit(AstBreak* nodep) { visit((AstNodeStmt*)(nodep)); }
+    //  virtual void visit(AstNodeStmt* nodep) { visit((AstNode*)(nodep)); }
 };
 
 //######################################################################
@@ -886,7 +892,7 @@ public:
     AstNode* oldp() const { return m_oldp; }
     void dump(ostream& str=cout) const;
 };
-inline ostream& operator<<(ostream& os, AstNRelinker& rhs) { rhs.dump(os); return os;}
+inline ostream& operator<<(ostream& os, const AstNRelinker& rhs) { rhs.dump(os); return os;}
 
 //######################################################################
 // V3Hash -- Node hashing for V3Combine
@@ -898,7 +904,8 @@ class V3Hash {
     uint32_t	m_both;
     static const uint32_t M24 = ((1<<24)-1);
     void setBoth(uint32_t depth, uint32_t hshval) {
-	if (depth==0) depth=1; if (depth>255) depth=255;
+	if (depth==0) depth=1;
+	if (depth>255) depth=255;
 	m_both = (depth<<24) | (hshval & M24);
     }
 public:
@@ -916,7 +923,7 @@ public:
     class FullValue {};		// for creator type-overload selection
     explicit V3Hash(Illegal) { m_both=0; }
     // Saving and restoring inside a userp
-    explicit V3Hash(AstNUser* up) { m_both=up->castInt(); }
+    explicit V3Hash(VNUser u) { m_both=u.toInt(); }
     V3Hash operator+= (const V3Hash& rh) {
 	setBoth(depth()+rh.depth(), (hshval()*31+rh.hshval()));
 	return *this; };
@@ -935,7 +942,7 @@ public:
     V3Hash(V3Hash h1, V3Hash h2, V3Hash h3, V3Hash h4) {
 	setBoth(1,((h1.hshval()*31+h2.hshval())*31+h3.hshval())*31+h4.hshval()); }
 };
-ostream& operator<<(ostream& os, V3Hash rhs);
+ostream& operator<<(ostream& os, const V3Hash& rhs);
 
 //######################################################################
 // AstNode -- Base type of all Ast types
@@ -975,15 +982,15 @@ class AstNode {
     //		// Space for more bools here
 
     // This member ordering both allows 64 bit alignment and puts associated data together
-    AstNUser*	m_user1p;	// Pointer to any information the user iteration routine wants
+    VNUser	m_user1u;	// Contains any information the user iteration routine wants
     uint32_t	m_user1Cnt;	// Mark of when userp was set
     uint32_t	m_user2Cnt;	// Mark of when userp was set
-    AstNUser*	m_user2p;	// Pointer to any information the user iteration routine wants
-    AstNUser*	m_user3p;	// Pointer to any information the user iteration routine wants
+    VNUser	m_user2u;	// Contains any information the user iteration routine wants
+    VNUser	m_user3u;	// Contains any information the user iteration routine wants
     uint32_t	m_user3Cnt;	// Mark of when userp was set
     uint32_t	m_user4Cnt;	// Mark of when userp was set
-    AstNUser*	m_user4p;	// Pointer to any information the user iteration routine wants
-    AstNUser*	m_user5p;	// Pointer to any information the user iteration routine wants
+    VNUser	m_user4u;	// Contains any information the user iteration routine wants
+    VNUser	m_user5u;	// Contains any information the user iteration routine wants
     uint32_t	m_user5Cnt;	// Mark of when userp was set
 
     // METHODS
@@ -993,7 +1000,7 @@ class AstNode {
     void	op4p(AstNode* nodep) { m_op4p = nodep; if (nodep) nodep->m_backp = this; }
 
     void	init();	// initialize value of AstNode
-    void	iterateListBackwards(AstNVisitor& v, AstNUser* vup=NULL);
+    void	iterateListBackwards(AstNVisitor& v);
 private:
     AstNode*	cloneTreeIter();
     AstNode*	cloneTreeIterList();
@@ -1111,57 +1118,75 @@ public:
     bool	isSigned() const;
     bool	isString() const;
 
-    AstNUser*	user1p() const {
+    VNUser	user1u() const {
 	// Slows things down measurably, so disabled by default
 	//UASSERT_STATIC(AstUser1InUse::s_userBusy, "userp set w/o busy");
-	return ((m_user1Cnt==AstUser1InUse::s_userCntGbl)?m_user1p:NULL);
+	return ((m_user1Cnt==AstUser1InUse::s_userCntGbl) ? m_user1u : VNUser(0));
     }
-    void	user1p(void* userp) { m_user1p=(AstNUser*)(userp); m_user1Cnt=AstUser1InUse::s_userCntGbl; }
-    int		user1() const { return user1p()->castInt(); }
-    void	user1(int val) { user1p(AstNUser::fromInt(val)); }
+    AstNode*	user1p() const { return user1u().toNodep(); }
+    void	user1u(const VNUser& user) { m_user1u=user; m_user1Cnt=AstUser1InUse::s_userCntGbl; }
+    void	user1p(void* userp) { user1u(VNUser(userp)); }
+    int		user1() const { return user1u().toInt(); }
+    void	user1(int val) { user1u(VNUser(val)); }
     int		user1Inc(int val=1) { int v=user1(); user1(v+val); return v; }
     int		user1SetOnce() { int v=user1(); if (!v) user1(1); return v; } // Better for cache than user1Inc()
     static void	user1ClearTree() { AstUser1InUse::clear(); }  // Clear userp()'s across the entire tree
 
-    AstNUser*	user2p() const {
-	//UASSERT_STATIC(AstUser2InUse::s_userBusy, "user2p set w/o busy");
-	return ((m_user2Cnt==AstUser2InUse::s_userCntGbl)?m_user2p:NULL); }
-    void	user2p(void* userp) { m_user2p=(AstNUser*)(userp); m_user2Cnt=AstUser2InUse::s_userCntGbl; }
-    int		user2() const { return user2p()->castInt(); }
-    void	user2(int val) { user2p(AstNUser::fromInt(val)); }
+    VNUser	user2u() const {
+	// Slows things down measurably, so disabled by default
+	//UASSERT_STATIC(AstUser2InUse::s_userBusy, "userp set w/o busy");
+	return ((m_user2Cnt==AstUser2InUse::s_userCntGbl) ? m_user2u : VNUser(0));
+    }
+    AstNode*	user2p() const { return user2u().toNodep(); }
+    void	user2u(const VNUser& user) { m_user2u=user; m_user2Cnt=AstUser2InUse::s_userCntGbl; }
+    void	user2p(void* userp) { user2u(VNUser(userp)); }
+    int		user2() const { return user2u().toInt(); }
+    void	user2(int val) { user2u(VNUser(val)); }
     int		user2Inc(int val=1) { int v=user2(); user2(v+val); return v; }
-    int		user2SetOnce() { int v=user2(); if (!v) user2(1); return v; }
-    static void	user2ClearTree() { AstUser2InUse::clear(); }
+    int		user2SetOnce() { int v=user2(); if (!v) user2(1); return v; } // Better for cache than user2Inc()
+    static void	user2ClearTree() { AstUser2InUse::clear(); }  // Clear userp()'s across the entire tree
 
-    AstNUser*	user3p() const {
-	//UASSERT_STATIC(AstUser3InUse::s_userBusy, "user3p set w/o busy");
-	return ((m_user3Cnt==AstUser3InUse::s_userCntGbl)?m_user3p:NULL); }
-    void	user3p(void* userp) { m_user3p=(AstNUser*)(userp); m_user3Cnt=AstUser3InUse::s_userCntGbl; }
-    int		user3() const { return user3p()->castInt(); }
-    void	user3(int val) { user3p(AstNUser::fromInt(val)); }
+    VNUser	user3u() const {
+	// Slows things down measurably, so disabled by default
+	//UASSERT_STATIC(AstUser3InUse::s_userBusy, "userp set w/o busy");
+	return ((m_user3Cnt==AstUser3InUse::s_userCntGbl) ? m_user3u : VNUser(0));
+    }
+    AstNode*	user3p() const { return user3u().toNodep(); }
+    void	user3u(const VNUser& user) { m_user3u=user; m_user3Cnt=AstUser3InUse::s_userCntGbl; }
+    void	user3p(void* userp) { user3u(VNUser(userp)); }
+    int		user3() const { return user3u().toInt(); }
+    void	user3(int val) { user3u(VNUser(val)); }
     int		user3Inc(int val=1) { int v=user3(); user3(v+val); return v; }
-    int		user3SetOnce() { int v=user3(); if (!v) user3(1); return v; }
-    static void	user3ClearTree() { AstUser3InUse::clear(); }
+    int		user3SetOnce() { int v=user3(); if (!v) user3(1); return v; } // Better for cache than user3Inc()
+    static void	user3ClearTree() { AstUser3InUse::clear(); }  // Clear userp()'s across the entire tree
 
-    AstNUser*	user4p() const {
-	//UASSERT_STATIC(AstUser4InUse::s_userBusy, "user4p set w/o busy");
-	return ((m_user4Cnt==AstUser4InUse::s_userCntGbl)?m_user4p:NULL); }
-    void	user4p(void* userp) { m_user4p=(AstNUser*)(userp); m_user4Cnt=AstUser4InUse::s_userCntGbl; }
-    int		user4() const { return user4p()->castInt(); }
-    void	user4(int val) { user4p(AstNUser::fromInt(val)); }
+    VNUser	user4u() const {
+	// Slows things down measurably, so disabled by default
+	//UASSERT_STATIC(AstUser4InUse::s_userBusy, "userp set w/o busy");
+	return ((m_user4Cnt==AstUser4InUse::s_userCntGbl) ? m_user4u : VNUser(0));
+    }
+    AstNode*	user4p() const { return user4u().toNodep(); }
+    void	user4u(const VNUser& user) { m_user4u=user; m_user4Cnt=AstUser4InUse::s_userCntGbl; }
+    void	user4p(void* userp) { user4u(VNUser(userp)); }
+    int		user4() const { return user4u().toInt(); }
+    void	user4(int val) { user4u(VNUser(val)); }
     int		user4Inc(int val=1) { int v=user4(); user4(v+val); return v; }
-    int		user4SetOnce() { int v=user4(); if (!v) user4(1); return v; }
-    static void	user4ClearTree() { AstUser4InUse::clear(); }
+    int		user4SetOnce() { int v=user4(); if (!v) user4(1); return v; } // Better for cache than user4Inc()
+    static void	user4ClearTree() { AstUser4InUse::clear(); }  // Clear userp()'s across the entire tree
 
-    AstNUser*	user5p() const {
-	//UASSERT_STATIC(AstUser5InUse::s_userBusy, "user5p set w/o busy");
-	return ((m_user5Cnt==AstUser5InUse::s_userCntGbl)?m_user5p:NULL); }
-    void	user5p(void* userp) { m_user5p=(AstNUser*)(userp); m_user5Cnt=AstUser5InUse::s_userCntGbl; }
-    int		user5() const { return user5p()->castInt(); }
-    void	user5(int val) { user5p(AstNUser::fromInt(val)); }
+    VNUser	user5u() const {
+	// Slows things down measurably, so disabled by default
+	//UASSERT_STATIC(AstUser5InUse::s_userBusy, "userp set w/o busy");
+	return ((m_user5Cnt==AstUser5InUse::s_userCntGbl) ? m_user5u : VNUser(0));
+    }
+    AstNode*	user5p() const { return user5u().toNodep(); }
+    void	user5u(const VNUser& user) { m_user5u=user; m_user5Cnt=AstUser5InUse::s_userCntGbl; }
+    void	user5p(void* userp) { user5u(VNUser(userp)); }
+    int		user5() const { return user5u().toInt(); }
+    void	user5(int val) { user5u(VNUser(val)); }
     int		user5Inc(int val=1) { int v=user5(); user5(v+val); return v; }
-    int		user5SetOnce() { int v=user5(); if (!v) user5(1); return v; }
-    static void	user5ClearTree() { AstUser5InUse::clear(); }
+    int		user5SetOnce() { int v=user5(); if (!v) user5(1); return v; } // Better for cache than user5Inc()
+    static void	user5ClearTree() { AstUser5InUse::clear(); }  // Clear userp()'s across the entire tree
 
     vluint64_t	editCount() const { return m_editCount; }
     void	editCountInc() { m_editCount = ++s_editCntGbl; }  // Preincrement, so can "watch AstNode::s_editCntGbl=##"
@@ -1207,6 +1232,7 @@ public:
 
     // METHODS - dump and error
     void	v3errorEnd(ostringstream& str) const;
+    void	v3errorEndFatal(ostringstream& str) const VL_ATTR_NORETURN;
     string	warnMore() const;
     virtual void dump(ostream& str=cout);
     void	dumpGdb(); // For GDB only
@@ -1265,17 +1291,16 @@ public:
     virtual const char* broken() const { return NULL; }
 
     // INVOKERS
-    virtual void accept(AstNVisitor& v, AstNUser* vup=NULL) = 0;
-    void	iterate(AstNVisitor& v, AstNUser* vup=NULL) { this->accept(v,vup); } 	  // Does this; excludes following this->next
-    void	iterateAndNext(AstNVisitor& v, AstNUser* vup=NULL);
-    void	iterateAndNextConst(AstNVisitor& v, AstNUser* vup=NULL);
-    void	iterateChildren(AstNVisitor& v, AstNUser* vup=NULL);  // Excludes following this->next
-    void	iterateChildrenBackwards(AstNVisitor& v, AstNUser* vup=NULL);  // Excludes following this->next
-    void	iterateChildrenConst(AstNVisitor& v, AstNUser* vup=NULL);  // Excludes following this->next
-    AstNode*	acceptSubtreeReturnEdits(AstNVisitor& v, AstNUser* vup=NULL);  // Return edited nodep; see comments in V3Ast.cpp
+    virtual void accept(AstNVisitor& v) = 0;
+    void	iterate(AstNVisitor& v) { this->accept(v); } 	  // Does this; excludes following this->next
+    void	iterateAndNext(AstNVisitor& v);
+    void	iterateAndNextConst(AstNVisitor& v);
+    void	iterateChildren(AstNVisitor& v);  // Excludes following this->next
+    void	iterateChildrenBackwards(AstNVisitor& v);  // Excludes following this->next
+    void	iterateChildrenConst(AstNVisitor& v);  // Excludes following this->next
+    AstNode*	iterateSubtreeReturnEdits(AstNVisitor& v);  // Return edited nodep; see comments in V3Ast.cpp
 
     // CONVERSION
-    AstNode*	castNode() { return this; }
 #include "V3Ast__gen_interface.h"	// From ./astgen
     // Things like:
     //  AstAlways*	castAlways();
@@ -1290,7 +1315,8 @@ inline void AstNRelinker::relink(AstNode* newp) { newp->AstNode::relink(this); }
 
 #define ASTNODE_BASE_FUNCS(name)	\
     virtual ~Ast ##name() {} \
-    Ast ##name * cloneTree(bool cloneNext) { return AstNode::cloneTree(cloneNext)->cast ##name(); }
+    Ast ##name * cloneTree(bool cloneNext) { return static_cast<Ast ##name *>(AstNode::cloneTree(cloneNext)); } \
+    Ast ##name * clonep() const { return static_cast<Ast ##name *>(AstNode::clonep()); }
 
 class AstNodeMath : public AstNode {
     // Math -- anything that's part of an expression tree
@@ -1318,7 +1344,7 @@ public:
     // Know no children, and hot function, so skip iterator for speed
     // See checkTreeIter also that asserts no children
     // cppcheck-suppress functionConst
-    void iterateChildren(AstNVisitor& v, AstNUser* vup=NULL) { }
+    void iterateChildren(AstNVisitor& v) { }
 };
 
 class AstNodeUniop : public AstNodeMath {
@@ -1329,7 +1355,7 @@ public:
 	dtypeFrom(lhsp);
 	setOp1p(lhsp); }
     ASTNODE_BASE_FUNCS(NodeUniop)
-    AstNode*	lhsp() 	const { return op1p()->castNode(); }
+    AstNode*	lhsp() 	const { return op1p(); }
     void	lhsp(AstNode* nodep)  { return setOp1p(nodep); }
     // METHODS
     virtual void numberOperate(V3Number& out, const V3Number& lhs) = 0; // Set out to evaluation of a AstConst'ed lhs
@@ -1350,8 +1376,10 @@ public:
 	: AstNodeMath(fl) {
 	setOp1p(lhs); setOp2p(rhs); }
     ASTNODE_BASE_FUNCS(NodeBiop)
-    AstNode*	lhsp() 	const { return op1p()->castNode(); }
-    AstNode*	rhsp() 	const { return op2p()->castNode(); }
+    virtual AstNode* cloneType(AstNode* lhsp, AstNode* rhsp)=0;	// Clone single node, just get same type back.
+    // ACCESSORS
+    AstNode*	lhsp() 	const { return op1p(); }
+    AstNode*	rhsp() 	const { return op2p(); }
     void	lhsp(AstNode* nodep)  { return setOp1p(nodep); }
     void	rhsp(AstNode* nodep)  { return setOp2p(nodep); }
     // METHODS
@@ -1375,9 +1403,9 @@ public:
 	: AstNodeMath(fl) {
 	setOp1p(lhs); setOp2p(rhs); setOp3p(ths); }
     ASTNODE_BASE_FUNCS(NodeTriop)
-    AstNode*	lhsp() 	const { return op1p()->castNode(); }
-    AstNode*	rhsp() 	const { return op2p()->castNode(); }
-    AstNode*	thsp() 	const { return op3p()->castNode(); }
+    AstNode*	lhsp() 	const { return op1p(); }
+    AstNode*	rhsp() 	const { return op2p(); }
+    AstNode*	thsp() 	const { return op3p(); }
     void	lhsp(AstNode* nodep)  { return setOp1p(nodep); }
     void	rhsp(AstNode* nodep)  { return setOp2p(nodep); }
     void	thsp(AstNode* nodep)  { return setOp3p(nodep); }
@@ -1419,9 +1447,9 @@ public:
     ASTNODE_BASE_FUNCS(NodeCond)
     virtual void numberOperate(V3Number& out, const V3Number& lhs, const V3Number& rhs, const V3Number& ths) {
 	if (lhs.isNeqZero()) out.opAssign(rhs); else out.opAssign(ths); }
-    AstNode*	condp() 	const { return op1p()->castNode(); }	// op1 = Condition
-    AstNode*	expr1p() 	const { return op2p()->castNode(); }	// op2 = If true...
-    AstNode*	expr2p() 	const { return op3p()->castNode(); }	// op3 = If false...
+    AstNode*	condp() 	const { return op1p(); }	// op1 = Condition
+    AstNode*	expr1p() 	const { return op2p(); }	// op2 = If true...
+    AstNode*	expr2p() 	const { return op3p(); }	// op3 = If false...
     virtual string emitVerilog() { return "%k(%l %f? %r %k: %t)"; }
     virtual string emitC() { return "VL_COND_%nq%lq%rq%tq(%nw,%lw,%rw,%tw, %P, %li, %ri, %ti)"; }
     virtual bool cleanOut() { return false; } // clean if e1 & e2 clean
@@ -1439,10 +1467,10 @@ public:
 	: AstNode(fl) {
 	setOp1p(lhs); setOp2p(rhs); setNOp3p(ths); }
     ASTNODE_BASE_FUNCS(NodePreSel)
-    AstNode*	lhsp() 	const { return op1p()->castNode(); }
+    AstNode*	lhsp() 	const { return op1p(); }
     AstNode*	fromp() const { return lhsp(); }
-    AstNode*	rhsp() 	const { return op2p()->castNode(); }
-    AstNode*	thsp() 	const { return op3p()->castNode(); }
+    AstNode*	rhsp() 	const { return op2p(); }
+    AstNode*	thsp() 	const { return op3p(); }
     AstAttrOf*	attrp() const { return op4p()->castAttrOf(); }
     void	lhsp(AstNode* nodep)  { return setOp1p(nodep); }
     void	rhsp(AstNode* nodep)  { return setOp2p(nodep); }
@@ -1474,8 +1502,8 @@ public:
     ASTNODE_BASE_FUNCS(NodeAssign)
     virtual AstNode*	cloneType(AstNode* lhsp, AstNode* rhsp)=0;	// Clone single node, just get same type back.
     // So iteration hits the RHS which is "earlier" in execution order, it's op1, not op2
-    AstNode* rhsp()		const { return op1p()->castNode(); }	// op1 = Assign from
-    AstNode* lhsp()		const { return op2p()->castNode(); }	// op2 = Assign to
+    AstNode* rhsp()		const { return op1p(); }	// op1 = Assign from
+    AstNode* lhsp()		const { return op2p(); }	// op2 = Assign to
     void rhsp(AstNode* np) { setOp1p(np); }
     void lhsp(AstNode* np) { setOp2p(np); }
     virtual bool hasDType() const { return true; }
@@ -1484,6 +1512,7 @@ public:
     virtual V3Hash sameHash() const { return V3Hash(); }
     virtual bool same(AstNode*) const { return true; }
     virtual string verilogKwd() const { return "="; }
+    virtual bool brokeLhsMustBeLvalue() const = 0;
 };
 
 class AstNodeFor : public AstNodeStmt {
@@ -1494,10 +1523,10 @@ public:
 	addNOp1p(initsp); setOp2p(condp); addNOp3p(incsp); addNOp4p(bodysp);
     }
     ASTNODE_BASE_FUNCS(NodeFor)
-    AstNode*	initsp()	const { return op1p()->castNode(); }	// op1= initial statements
-    AstNode*	condp()		const { return op2p()->castNode(); }	// op2= condition to continue
-    AstNode*	incsp()		const { return op3p()->castNode(); }	// op3= increment statements
-    AstNode*	bodysp()	const { return op4p()->castNode(); }	// op4= body of loop
+    AstNode*	initsp()	const { return op1p(); }	// op1= initial statements
+    AstNode*	condp()		const { return op2p(); }	// op2= condition to continue
+    AstNode*	incsp()		const { return op3p(); }	// op3= increment statements
+    AstNode*	bodysp()	const { return op4p(); }	// op4= body of loop
     virtual bool isGateOptimizable() const { return false; }
     virtual int  instrCount() const { return instrCountBranch(); }
     virtual V3Hash sameHash() const { return V3Hash(); }
@@ -1536,9 +1565,9 @@ public:
     }
     ASTNODE_BASE_FUNCS(NodeCase)
     virtual int   instrCount()	const { return instrCountBranch(); }
-    AstNode*	  exprp()	const { return op1p()->castNode(); }	// op1 = case condition <expression>
+    AstNode*	  exprp()	const { return op1p(); }	// op1 = case condition <expression>
     AstCaseItem*  itemsp()	const { return op2p()->castCaseItem(); }  // op2 = list of case expressions
-    AstNode*	  notParallelp() const { return op3p()->castNode(); }	// op3 = assertion code for non-full case's
+    AstNode*	  notParallelp() const { return op3p(); }	// op3 = assertion code for non-full case's
     void addItemsp(AstNode* nodep) { addOp2p(nodep); }
     void addNotParallelp(AstNode* nodep) { setOp3p(nodep); }
 };
@@ -1600,7 +1629,7 @@ public:
     // Know no children, and hot function, so skip iterator for speed
     // See checkTreeIter also that asserts no children
     // cppcheck-suppress functionConst
-    void iterateChildren(AstNVisitor& v, AstNUser* vup=NULL) { }
+    void iterateChildren(AstNVisitor& v) { }
 };
 
 class AstNodeText : public AstNode {
@@ -1650,6 +1679,7 @@ public:
     virtual bool maybePointedTo() const { return true; }
     virtual AstNodeDType* virtRefDTypep() const { return NULL; } // Iff has a non-null refDTypep(), as generic node function
     virtual void virtRefDTypep(AstNodeDType* nodep) { }	// Iff has refDTypep(), set as generic node function
+    virtual bool similarDType(AstNodeDType* samep) const = 0;  // Assignable equivalence.  Call skipRefp() on this and samep before calling
     //
     // Changing the width may confuse the data type resolution, so must clear TypeTable cache after use.
     void widthForce(int width, int sized) { m_width=width; m_widthMin=sized; }
@@ -1699,6 +1729,9 @@ public:
     virtual int widthAlignBytes() const; // (Slow) recurses - Structure alignment 1,2,4 or 8 bytes (arrays affect this)
     virtual int widthTotalBytes() const; // (Slow) recurses - Width in bytes rounding up 1,2,4,8,12,...
     // op1 = members
+    virtual bool similarDType(AstNodeDType* samep) const {
+	return this==samep;  // We don't compare members, require exact equivalence
+    }
     AstMemberDType* membersp() const { return op1p()->castMemberDType(); } // op1 = AstMember list
     void addMembersp(AstNode* nodep) { addNOp1p(nodep); }
     bool packed() const { return m_packed; }
@@ -1729,15 +1762,23 @@ public:
     virtual void dump(ostream& str);
     virtual void dumpSmall(ostream& str);
     virtual const char* broken() const { BROKEN_RTN(!((m_refDTypep && !childDTypep() && m_refDTypep->brokeExists())
-						     || (!m_refDTypep && childDTypep()))); return NULL; }
+						      || (!m_refDTypep && childDTypep()))); return NULL; }
     virtual void cloneRelink() { if (m_refDTypep && m_refDTypep->clonep()) {
-	m_refDTypep = m_refDTypep->clonep()->castNodeDType();
+	m_refDTypep = m_refDTypep->clonep();
     }}
     virtual bool same(AstNode* samep) const {
 	AstNodeArrayDType* sp = samep->castNodeArrayDType();
 	return (msb()==sp->msb()
 		&& subDTypep()==sp->subDTypep()
 		&& rangenp()->sameTree(sp->rangenp())); }  // HashedDT doesn't recurse, so need to check children
+    virtual bool similarDType(AstNodeDType* samep) const {
+	AstNodeArrayDType* sp = samep->castNodeArrayDType();
+	return (sp
+		&& type() == samep->type()
+		&& msb() == sp->msb()
+		&& rangenp()->sameTree(sp->rangenp())
+		&& subDTypep()->skipRefp()->similarDType(sp->subDTypep()->skipRefp()));
+    }
     virtual V3Hash sameHash() const { return V3Hash(V3Hash(m_refDTypep),V3Hash(msb()),V3Hash(lsb())); }
     AstNodeDType* getChildDTypep() const { return childDTypep(); }
     AstNodeDType* childDTypep() const { return op1p()->castNodeDType(); } // op1 = Range of variable
@@ -1767,9 +1808,9 @@ public:
     AstNodeSel(FileLine* fl, AstNode* fromp, AstNode* bitp)
 	:AstNodeBiop(fl, fromp, bitp) {}
     ASTNODE_BASE_FUNCS(NodeSel)
-    AstNode* fromp() const { return op1p()->castNode(); }	// op1 = Extracting what (NULL=TBD during parsing)
+    AstNode* fromp() const { return op1p(); }	// op1 = Extracting what (NULL=TBD during parsing)
     void fromp(AstNode* nodep) { setOp1p(nodep); }
-    AstNode* bitp() const { return op2p()->castNode(); }	// op2 = Msb selection expression
+    AstNode* bitp() const { return op2p(); }	// op2 = Msb selection expression
     void bitp(AstNode* nodep) { setOp2p(nodep); }
     int	     bitConst()	const;
     virtual bool hasDType() const { return true; }
@@ -1821,11 +1862,11 @@ public:
     string cname() const { return m_cname; }
     void cname(const string& cname) { m_cname = cname; }
     // op1 = Output variable (functions only, NULL for tasks)
-    AstNode*	fvarp() 	const { return op1p()->castNode(); }
+    AstNode*	fvarp() 	const { return op1p(); }
     void 	addFvarp(AstNode* nodep) { addNOp1p(nodep); }
     bool	isFunction() const { return fvarp()!=NULL; }
     // op3 = Statements/Ports/Vars
-    AstNode*	stmtsp() 	const { return op3p()->castNode(); }	// op3 = List of statements
+    AstNode*	stmtsp() 	const { return op3p(); }	// op3 = List of statements
     void	addStmtsp(AstNode* nodep) { addNOp3p(nodep); }
     // op4 = scope name
     AstScopeName* scopeNamep() const { return op4p()->castScopeName(); }
@@ -1870,7 +1911,7 @@ public:
     ASTNODE_BASE_FUNCS(NodeFTaskRef)
     virtual const char* broken() const { BROKEN_RTN(m_taskp && !m_taskp->brokeExists()); return NULL; }
     virtual void cloneRelink() { if (m_taskp && m_taskp->clonep()) {
-	m_taskp = m_taskp->clonep()->castNodeFTask();
+	m_taskp = m_taskp->clonep();
     }}
     virtual void dump(ostream& str=cout);
     virtual string name()	const { return m_name; }		// * = Var name
@@ -1888,7 +1929,7 @@ public:
     // op1 = namep
     AstNode*	namep()		const { return op1p(); }
     // op2 = Pin interconnection list
-    AstNode*	pinsp() 	const { return op2p()->castNode(); }
+    AstNode*	pinsp() 	const { return op2p(); }
     void addPinsp(AstNode* nodep) { addOp2p(nodep); }
     // op3 = scope tracking
     AstScopeName* scopeNamep() const { return op3p()->castScopeName(); }
@@ -1920,7 +1961,7 @@ public:
     virtual void dump(ostream& str);
     virtual bool maybePointedTo() const { return true; }
     virtual string name()	const { return m_name; }
-    AstNode*	stmtsp() 	const { return op2p()->castNode(); }	// op2 = List of statements
+    AstNode*	stmtsp() 	const { return op2p(); }	// op2 = List of statements
     AstActive*  activesp()	const { return op3p()->castActive(); }	// op3 = List of i/sblocks
     // METHODS
     void addInlinesp(AstNode* nodep) { addOp1p(nodep); }
@@ -1982,8 +2023,8 @@ inline int AstNodeArrayDType::elementsConst() const { return rangep()->elementsC
 inline VNumRange AstNodeArrayDType::declRange() const { return VNumRange(msb(), lsb(), rangep()->littleEndian()); }
 
 inline void AstIfaceRefDType::cloneRelink() {
-    if (m_cellp && m_cellp->clonep()) m_cellp = m_cellp->clonep()->castCell();
-    if (m_ifacep && m_ifacep->clonep()) m_ifacep = m_ifacep->clonep()->castIface();
-    if (m_modportp && m_modportp->clonep()) m_modportp = m_modportp->clonep()->castModport(); }
+    if (m_cellp && m_cellp->clonep()) m_cellp = m_cellp->clonep();
+    if (m_ifacep && m_ifacep->clonep()) m_ifacep = m_ifacep->clonep();
+    if (m_modportp && m_modportp->clonep()) m_modportp = m_modportp->clonep(); }
 
 #endif // Guard

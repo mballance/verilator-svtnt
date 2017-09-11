@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -80,15 +80,15 @@ void AstNode::init() {
     // Attributes
     m_didWidth = false;
     m_doingWidth = false;
-    m_user1p = NULL;
+    m_user1u = VNUser(0);
     m_user1Cnt = 0;
-    m_user2p = NULL;
+    m_user2u = VNUser(0);
     m_user2Cnt = 0;
-    m_user3p = NULL;
+    m_user3u = VNUser(0);
     m_user3Cnt = 0;
-    m_user4p = NULL;
+    m_user4u = VNUser(0);
     m_user4Cnt = 0;
-    m_user5p = NULL;
+    m_user5u = VNUser(0);
     m_user5Cnt = 0;
 }
 
@@ -166,44 +166,53 @@ string AstNode::vcdName(const string& namein) {
 }
 
 string AstNode::prettyName(const string& namein) {
+    // This function is somewhat hot, so we short-circuit some compares
     string pretty;
     pretty = "";
+    pretty.reserve(namein.length());
     for (const char* pos = namein.c_str(); *pos; ) {
-	if (0==strncmp(pos,"__BRA__",7)) {
-	    pretty += "[";
-	    pos += 7;
-	}
-	else if (0==strncmp(pos,"__KET__",7)) {
-	    pretty += "]";
-	    pos += 7;
-	}
-	else if (0==strncmp(pos,"__DOT__",7)) {
-	    pretty += ".";
-	    pos += 7;
-	}
-	else if (0==strncmp(pos,"->",2)) {
+	if (pos[0]=='-' && pos[1]=='>') { // ->
 	    pretty += ".";
 	    pos += 2;
+	    continue;
 	}
-	else if (0==strncmp(pos,"__PVT__",7)) {
-	    pretty += "";
-	    pos += 7;
+	if (pos[0]=='_' && pos[1]=='_') { // Short-circuit
+	    if (0==strncmp(pos,"__BRA__",7)) {
+		pretty += "[";
+		pos += 7;
+		continue;
+	    }
+	    if (0==strncmp(pos,"__KET__",7)) {
+		pretty += "]";
+		pos += 7;
+		continue;
+	    }
+	    if (0==strncmp(pos,"__DOT__",7)) {
+		pretty += ".";
+		pos += 7;
+		continue;
+	    }
+	    if (0==strncmp(pos,"__PVT__",7)) {
+		pretty += "";
+		pos += 7;
+		continue;
+	    }
+	    if (pos[0]=='_' && pos[1]=='_' && pos[2]=='0'
+		     && isxdigit(pos[3]) && isxdigit(pos[4])) {
+		char value = 0;
+		value += 16*(isdigit(pos[3]) ? (pos[3]-'0') : (tolower(pos[3])-'a'+10));
+		value +=    (isdigit(pos[4]) ? (pos[4]-'0') : (tolower(pos[4])-'a'+10));
+		pretty += value;
+		pos += 5;
+		continue;
+	    }
 	}
-	else if (pos[0]=='_' && pos[1]=='_' && pos[2]=='0'
-		 && isxdigit(pos[3]) && isxdigit(pos[4])) {
-	    char value = 0;
-	    value += 16*(isdigit(pos[3]) ? (pos[3]-'0') : (tolower(pos[3])-'a'+10));
-	    value +=    (isdigit(pos[4]) ? (pos[4]-'0') : (tolower(pos[4])-'a'+10));
-	    pretty += value;
-	    pos += 5;
-	}
-	else {
-	    pretty += pos[0];
-	    ++pos;
-	}
+	// Default
+	pretty += pos[0];
+	++pos;
     }
-    if (pretty.substr(0,4) == "TOP.") pretty.replace(0,4,"");
-    if (pretty.substr(0,5) == "TOP->") pretty.replace(0,5,"");
+    if (pretty[0]=='T' && pretty.substr(0,4) == "TOP.") pretty.replace(0,4,"");
+    if (pretty[0]=='T' && pretty.substr(0,5) == "TOP->") pretty.replace(0,5,"");
     return pretty;
 }
 
@@ -723,31 +732,31 @@ void AstNode::operator delete(void* objp, size_t size) {
 //======================================================================
 // Iterators
 
-void AstNode::iterateChildren(AstNVisitor& v, AstNUser* vup) {
+void AstNode::iterateChildren(AstNVisitor& v) {
     // This is a very hot function
     ASTNODE_PREFETCH(m_op1p);
     ASTNODE_PREFETCH(m_op2p);
     ASTNODE_PREFETCH(m_op3p);
     ASTNODE_PREFETCH(m_op4p);
-    if (m_op1p) m_op1p->iterateAndNext(v, vup);
-    if (m_op2p) m_op2p->iterateAndNext(v, vup);
-    if (m_op3p) m_op3p->iterateAndNext(v, vup);
-    if (m_op4p) m_op4p->iterateAndNext(v, vup);
+    if (m_op1p) m_op1p->iterateAndNext(v);
+    if (m_op2p) m_op2p->iterateAndNext(v);
+    if (m_op3p) m_op3p->iterateAndNext(v);
+    if (m_op4p) m_op4p->iterateAndNext(v);
 }
 
-void AstNode::iterateChildrenConst(AstNVisitor& v, AstNUser* vup) {
+void AstNode::iterateChildrenConst(AstNVisitor& v) {
     // This is a very hot function
     ASTNODE_PREFETCH(m_op1p);
     ASTNODE_PREFETCH(m_op2p);
     ASTNODE_PREFETCH(m_op3p);
     ASTNODE_PREFETCH(m_op4p);
-    if (m_op1p) m_op1p->iterateAndNextConst(v, vup);
-    if (m_op2p) m_op2p->iterateAndNextConst(v, vup);
-    if (m_op3p) m_op3p->iterateAndNextConst(v, vup);
-    if (m_op4p) m_op4p->iterateAndNextConst(v, vup);
+    if (m_op1p) m_op1p->iterateAndNextConst(v);
+    if (m_op2p) m_op2p->iterateAndNextConst(v);
+    if (m_op3p) m_op3p->iterateAndNextConst(v);
+    if (m_op4p) m_op4p->iterateAndNextConst(v);
 }
 
-void AstNode::iterateAndNext(AstNVisitor& v, AstNUser* vup) {
+void AstNode::iterateAndNext(AstNVisitor& v) {
     // This is a very hot function
     // IMPORTANT: If you replace a node that's the target of this iterator,
     // then the NEW node will be iterated on next, it isn't skipped!
@@ -764,7 +773,7 @@ void AstNode::iterateAndNext(AstNVisitor& v, AstNUser* vup) {
 	//if (VL_UNLIKELY(niterp->m_iterpp)) niterp->v3fatalSrc("IterateAndNext under iterateAndNext may miss edits");
 	// cppcheck-suppress nullPointer
 	niterp->m_iterpp = &niterp;
-	niterp->accept(v, vup);
+	niterp->accept(v);
 	// accept may do a replaceNode and change niterp on us...
 	//if (niterp != nodep) UINFO(1,"iterateAndNext edited "<<(void*)nodep<<" now into "<<(void*)niterp<<endl);  // niterp maybe NULL, so need cast
 	if (!niterp) return;  // Perhaps node deleted inside accept
@@ -777,37 +786,37 @@ void AstNode::iterateAndNext(AstNVisitor& v, AstNUser* vup) {
     }
 }
 
-void AstNode::iterateListBackwards(AstNVisitor& v, AstNUser* vup) {
+void AstNode::iterateListBackwards(AstNVisitor& v) {
     UDEBUGONLY(UASSERT(dynamic_cast<AstNode*>(this),"this should not be NULL"););
     AstNode* nodep=this;
     while (nodep->m_nextp) nodep=nodep->m_nextp;
     while (nodep) {
 	// Edits not supported: nodep->m_iterpp = &nodep;
-	nodep->accept(v, vup);
+	nodep->accept(v);
 	if (nodep->backp()->m_nextp == nodep) nodep=nodep->backp();
 	else nodep = NULL;  // else: backp points up the tree.
     }
 }
 
-void AstNode::iterateChildrenBackwards(AstNVisitor& v, AstNUser* vup) {
-    if (m_op1p) m_op1p->iterateListBackwards(v,vup);
-    if (m_op2p) m_op2p->iterateListBackwards(v,vup);
-    if (m_op3p) m_op3p->iterateListBackwards(v,vup);
-    if (m_op4p) m_op4p->iterateListBackwards(v,vup);
+void AstNode::iterateChildrenBackwards(AstNVisitor& v) {
+    if (m_op1p) m_op1p->iterateListBackwards(v);
+    if (m_op2p) m_op2p->iterateListBackwards(v);
+    if (m_op3p) m_op3p->iterateListBackwards(v);
+    if (m_op4p) m_op4p->iterateListBackwards(v);
 }
 
-void AstNode::iterateAndNextConst(AstNVisitor& v, AstNUser* vup) {
+void AstNode::iterateAndNextConst(AstNVisitor& v) {
     // Keep following the current list even if edits change it
     if (!this) return;  // A few cases could be cleaned up, but want symmetry with iterateAndNext
     for (AstNode* nodep=this; nodep; ) {   // effectively: if (!this) return;  // Callers rely on this
 	AstNode* nnextp = nodep->m_nextp;
 	ASTNODE_PREFETCH(nnextp);
-	nodep->accept(v, vup);
+	nodep->accept(v);
 	nodep = nnextp;
     }
 }
 
-AstNode* AstNode::acceptSubtreeReturnEdits(AstNVisitor& v, AstNUser* vup) {
+AstNode* AstNode::iterateSubtreeReturnEdits(AstNVisitor& v) {
     // Some visitors perform tree edits (such as V3Const), and may even
     // replace/delete the exact nodep that the visitor is called with.  If
     // this happens, the parent will lose the handle to the node that was
@@ -817,12 +826,12 @@ AstNode* AstNode::acceptSubtreeReturnEdits(AstNVisitor& v, AstNUser* vup) {
     AstNode* nodep = this;  // Note "this" may point to bogus point later in this function
     if (nodep->castNetlist()) {
 	// Calling on top level; we know the netlist won't get replaced
-	nodep->accept(v, vup);
+	nodep->accept(v);
     } else if (!nodep->backp()) {
 	// Calling on standalone tree; insert a shim node so we can keep track, then delete it on completion
 	AstBegin* tempp = new AstBegin(nodep->fileline(),"[EditWrapper]",nodep);
 	{
-	    tempp->stmtsp()->accept(v, vup); VL_DANGLING(nodep); // nodep to null as may be replaced
+	    tempp->stmtsp()->accept(v); VL_DANGLING(nodep); // nodep to null as may be replaced
 	}
 	nodep = tempp->stmtsp()->unlinkFrBackWithNext();
 	tempp->deleteTree(); VL_DANGLING(tempp);
@@ -836,7 +845,7 @@ AstNode* AstNode::acceptSubtreeReturnEdits(AstNVisitor& v, AstNUser* vup) {
 	else if (this->m_backp->m_nextp == this) nextnodepp = &(this->m_backp->m_nextp);
 	if (!nextnodepp) this->v3fatalSrc("Node's back doesn't point to forward to node itself");
 	{
-	    nodep->accept(v, vup); VL_DANGLING(nodep); // nodep to null as may be replaced
+	    nodep->accept(v); VL_DANGLING(nodep); // nodep to null as may be replaced
 	}
 	nodep = *nextnodepp;  // Grab new node from point where old was connected
     }
@@ -849,7 +858,7 @@ void AstNode::cloneRelinkTree() {
     // private: Cleanup clone() operation on whole tree. Publicly call cloneTree() instead.
     for (AstNode* nodep=this; nodep; nodep=nodep->m_nextp) {
 	if (m_dtypep && m_dtypep->clonep()) {
-	    m_dtypep = m_dtypep->clonep()->castNodeDType();
+	    m_dtypep = m_dtypep->clonep();
 	}
 	nodep->cloneRelink();
 	if (nodep->m_op1p) nodep->m_op1p->cloneRelinkTree();
@@ -893,7 +902,7 @@ bool AstNode::sameTreeIter(AstNode* node1p, AstNode* node2p, bool ignNext, bool 
 //======================================================================
 // Static utilities
 
-ostream& operator<<(ostream& os, V3Hash rhs) {
+ostream& operator<<(ostream& os, const V3Hash& rhs) {
     return os<<hex<<setw(2)<<setfill('0')<<rhs.depth()
 	     <<"_"<<setw(6)<<setfill('0')<<rhs.hshval();
 }
@@ -1047,6 +1056,8 @@ void AstNode::dumpTreeFile(const string& filename, bool append, bool doDump) {
     // Next dump can indicate start from here
     editCountSetLast();
 }
+
+void AstNode::v3errorEndFatal(ostringstream& str) const { v3errorEnd(str); assert(0); }
 
 void AstNode::v3errorEnd(ostringstream& str) const {
     if (!dynamic_cast<const AstNode*>(this)) {

@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -44,7 +44,7 @@ class EmitCInlines : EmitCBaseVisitor {
     void emitInt();
 
     // VISITORS
-    virtual void visit(AstVar* nodep, AstNUser*) {
+    virtual void visit(AstVar* nodep) {
 	// All wide constants load into variables, so we can just hunt for them
 	nodep->iterateChildren(*this);
 	int words = nodep->widthWords();
@@ -56,16 +56,16 @@ class EmitCInlines : EmitCBaseVisitor {
 	    v3Global.needHInlines(true);
 	}
     }
-    virtual void visit(AstBasicDType* nodep, AstNUser*) {
+    virtual void visit(AstBasicDType* nodep) {
 	if (nodep->keyword() == AstBasicDTypeKwd::STRING) {
 	    v3Global.needHeavy(true);  // #include <string> via verilated_heavy.h when we create symbol file
 	}
     }
 
     // NOPs
-    virtual void visit(AstNodeStmt*, AstNUser*) {}
+    virtual void visit(AstNodeStmt*) {}
     // Default
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
     //---------------------------------------

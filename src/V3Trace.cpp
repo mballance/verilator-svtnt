@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -206,8 +206,13 @@ private:
 		AstTraceInc* nodep = vvertexp->nodep();
 		if (nodep->valuep()) {
 		    if (nodep->valuep()->backp() != nodep) nodep->v3fatalSrc("Trace duplicate back needs consistency, so we can map duplicates back to TRACEINCs");
-		    hashed.hashAndInsert(nodep->valuep());
+		    hashed.hash(nodep->valuep());
 		    UINFO(8, "  Hashed "<<hex<<hashed.nodeHash(nodep->valuep())<<" "<<nodep<<endl);
+
+		    // Just keep one node in the map and point all duplicates to this node
+		    if (hashed.findDuplicate(nodep->valuep()) == hashed.end()) {
+			hashed.hashAndInsert(nodep->valuep());
+		    }
 		}
 	    }
 	}
@@ -220,14 +225,11 @@ private:
 		    if (dupit != hashed.end()) {
 			AstTraceInc* dupincp = hashed.iteratorNodep(dupit)->backp()->castTraceInc();
 			if (!dupincp) nodep->v3fatalSrc("Trace duplicate of wrong type");
-			TraceTraceVertex* dupvertexp = dynamic_cast<TraceTraceVertex*>(dupincp->user1p()->castGraphVertex());
+			TraceTraceVertex* dupvertexp = dynamic_cast<TraceTraceVertex*>(dupincp->user1u().toGraphVertex());
 			UINFO(8,"  Orig "<<nodep<<endl);
 			UINFO(8,"   dup "<<dupincp<<endl);
-			// Mark the found node as a duplicate of the first node
-			// (Not vice-versa as we get the iterator for the found node)
-			dupvertexp->duplicatep(vvertexp);
-			// Remove node from comparison so don't hit it again
-			hashed.erase(dupit);
+			// Mark the hashed node as the original and our iterating node as duplicated
+			vvertexp->duplicatep(dupvertexp);
 		    }
 		}
 	    }
@@ -493,11 +495,13 @@ private:
 	//if (debug()>=9) nodep->dumpTree(cout,"-   assnnode: ");
 	// Find non-duplicated node; note some nodep's maybe null, as they were deleted below
 	TraceTraceVertex* dupvertexp = vvertexp;
-	while (dupvertexp->duplicatep()) {
+	if (dupvertexp->duplicatep()) {
 	    dupvertexp = dupvertexp->duplicatep();
 	    UINFO(9,"   dupOf "<<((void*)dupvertexp)<<" "<<((void*)dupvertexp->nodep())
 		  <<" "<<dupvertexp<<endl);
+	    if (dupvertexp->duplicatep()) dupvertexp->nodep()->v3fatalSrc("Original node was marked as a duplicate");
 	}
+
 	if (dupvertexp != vvertexp) {
 	    // It's an exact copy.  We'll assign the code to the master on
 	    // the first one we hit; the later ones will share the code.
@@ -535,7 +539,7 @@ private:
     }
 
     TraceCFuncVertex* getCFuncVertexp(AstCFunc* nodep) {
-	TraceCFuncVertex* vertexp = dynamic_cast<TraceCFuncVertex*>(nodep->user1p()->castGraphVertex());
+	TraceCFuncVertex* vertexp = dynamic_cast<TraceCFuncVertex*>(nodep->user1u().toGraphVertex());
 	if (!vertexp) {
 	    vertexp = new TraceCFuncVertex(&m_graph, nodep);
 	    nodep->user1p(vertexp);
@@ -543,7 +547,7 @@ private:
 	return vertexp;
     }
     TraceActivityVertex* getActivityVertexp(AstNode* nodep, bool slow) {
-	TraceActivityVertex* vertexp = dynamic_cast<TraceActivityVertex*>(nodep->user3p()->castGraphVertex());
+	TraceActivityVertex* vertexp = dynamic_cast<TraceActivityVertex*>(nodep->user3u().toGraphVertex());
 	if (!vertexp) {
 	    vertexp = new TraceActivityVertex(&m_graph, nodep, slow);
 	    nodep->user3p(vertexp);
@@ -553,7 +557,7 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNetlist* nodep, AstNUser*) {
+    virtual void visit(AstNetlist* nodep) {
 	m_code = 1; 	// Multiple TopScopes will require fixing how code#s
 	// are assigned as duplicate varscopes must result in the same tracing code#.
 
@@ -581,17 +585,17 @@ private:
 	assignActivity();
 	putTracesIntoTree();
     }
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	if (nodep->isTop()) m_topModp = nodep;
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstTopScope* nodep, AstNUser*) {
+    virtual void visit(AstTopScope* nodep) {
 	AstScope* scopep = nodep->scopep();
 	if (!scopep) nodep->v3fatalSrc("No scope found on top level");
 	m_highScopep = scopep;
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstCCall* nodep, AstNUser*) {
+    virtual void visit(AstCCall* nodep) {
 	UINFO(8,"   CCALL "<<nodep<<endl);
 	if (!m_finding && !nodep->user2()) {
 	    // See if there are other calls in same statement list;
@@ -609,7 +613,7 @@ private:
 	}
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstCFunc* nodep, AstNUser*) {
+    virtual void visit(AstCFunc* nodep) {
 	UINFO(8,"   CFUNC "<<nodep<<endl);
 	if (nodep->funcType() == AstCFuncType::TRACE_INIT) {
 	    m_initFuncp = nodep;
@@ -632,7 +636,7 @@ private:
 	nodep->iterateChildren(*this);
 	m_funcp = NULL;
     }
-    virtual void visit(AstTraceInc* nodep, AstNUser*) {
+    virtual void visit(AstTraceInc* nodep) {
 	UINFO(8,"   TRACE "<<nodep<<endl);
 	if (m_finding) nodep->v3fatalSrc("Traces should have been removed in prev step.");
 	nodep->unlinkFrBack();
@@ -645,16 +649,16 @@ private:
 	nodep->iterateChildren(*this);
 	m_tracep = NULL;
     }
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	if (m_tracep) {
 	    if (!nodep->varScopep()) nodep->v3fatalSrc("No var scope?");
 	    if (nodep->lvalue()) nodep->v3fatalSrc("Lvalue in trace?  Should be const.");
-	    V3GraphVertex* varVtxp = nodep->varScopep()->user1p()->castGraphVertex();
+	    V3GraphVertex* varVtxp = nodep->varScopep()->user1u().toGraphVertex();
 	    if (!varVtxp) {
 		varVtxp = new TraceVarVertex(&m_graph, nodep->varScopep());
 		nodep->varScopep()->user1p(varVtxp);
 	    }
-	    V3GraphVertex* traceVtxp = m_tracep->user1p()->castGraphVertex();
+	    V3GraphVertex* traceVtxp = m_tracep->user1u().toGraphVertex();
 	    new V3GraphEdge(&m_graph, varVtxp, traceVtxp, 1);
 	    if (nodep->varp()->isPrimaryIn()   // Always need to trace primary inputs
 		|| nodep->varp()->isSigPublic()) {  // Or ones user can change
@@ -664,14 +668,14 @@ private:
 	else if (m_funcp && m_finding && nodep->lvalue()) {
 	    if (!nodep->varScopep()) nodep->v3fatalSrc("No var scope?");
 	    V3GraphVertex* funcVtxp = getCFuncVertexp(m_funcp);
-	    V3GraphVertex* varVtxp = nodep->varScopep()->user1p()->castGraphVertex();
+	    V3GraphVertex* varVtxp = nodep->varScopep()->user1u().toGraphVertex();
 	    if (varVtxp) { // else we're not tracing this signal
 		new V3GraphEdge(&m_graph, funcVtxp, varVtxp, 1);
 	    }
 	}
     }
     //--------------------
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 

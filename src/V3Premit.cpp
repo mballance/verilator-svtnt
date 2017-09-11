@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -61,14 +61,14 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNodeAssign* nodep, AstNUser*) {
+    virtual void visit(AstNodeAssign* nodep) {
         //AstNode::user4ClearTree();  // Implied by AstUser4InUse
 	// LHS first as fewer varrefs
 	nodep->lhsp()->iterateAndNext(*this);
 	// Now find vars marked as lhs
 	nodep->rhsp()->iterateAndNext(*this);
     }
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	// it's LHS var is used so need a deep temporary
 	if (nodep->lvalue()) {
 	    nodep->varp()->user4(true);
@@ -79,7 +79,7 @@ private:
 	    }
 	}
     }
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 
@@ -144,8 +144,12 @@ private:
 			   && nodep->firstAbovep()->castNodeAssign()
 			   && assignNoTemp(nodep->firstAbovep()->castNodeAssign())) {
 		    // Not much point if it's just a direct assignment to a constant
+		} else if (nodep->backp()->castSel()
+			   && nodep->backp()->castSel()->widthp() == nodep) {
+		    // AstSel::width must remain a constant
 		} else if (nodep->firstAbovep()
-			   && nodep->firstAbovep()->castArraySel()) {  // ArraySel's are pointer refs, ignore
+			   && nodep->firstAbovep()->castArraySel()) {
+		    // ArraySel's are pointer refs, ignore
 		} else {
 		    UINFO(4,"Cre Temp: "<<nodep<<endl);
 		    createDeepTemp(nodep, false);
@@ -201,14 +205,14 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	UINFO(4," MOD   "<<nodep<<endl);
 	m_modp = nodep;
 	m_funcp = NULL;
 	nodep->iterateChildren(*this);
 	m_modp = NULL;
     }
-    virtual void visit(AstCFunc* nodep, AstNUser*) {
+    virtual void visit(AstCFunc* nodep) {
 	m_funcp = nodep;
 	nodep->iterateChildren(*this);
 	m_funcp = NULL;
@@ -217,7 +221,7 @@ private:
 	m_assignLhs = false;
 	if (m_funcp) m_stmtp = nodep;
     }
-    virtual void visit(AstWhile* nodep, AstNUser*) {
+    virtual void visit(AstWhile* nodep) {
 	UINFO(4,"  WHILE  "<<nodep<<endl);
 	startStatement(nodep);
 	nodep->precondsp()->iterateAndNext(*this);
@@ -230,7 +234,7 @@ private:
 	nodep->incsp()->iterateAndNext(*this);
 	m_stmtp = NULL;
     }
-    virtual void visit(AstNodeAssign* nodep, AstNUser*) {
+    virtual void visit(AstNodeAssign* nodep) {
 	startStatement(nodep);
 	{
 	    bool noopt = PremitAssignVisitor(nodep).noOpt();
@@ -246,13 +250,13 @@ private:
 	m_assignLhs = false;
 	m_stmtp = NULL;
     }
-    virtual void visit(AstNodeStmt* nodep, AstNUser*) {
+    virtual void visit(AstNodeStmt* nodep) {
 	UINFO(4,"  STMT  "<<nodep<<endl);
 	startStatement(nodep);
 	nodep->iterateChildren(*this);
 	m_stmtp = NULL;
     }
-    virtual void visit(AstTraceInc* nodep, AstNUser*) {
+    virtual void visit(AstTraceInc* nodep) {
 	startStatement(nodep);
 	m_inTracep = nodep;
 	nodep->iterateChildren(*this);
@@ -263,6 +267,11 @@ private:
 	// Shifts of > 32/64 bits in C++ will wrap-around and generate non-0s
 	if (!nodep->user2SetOnce()) {
 	    UINFO(4,"  ShiftFix  "<<nodep<<endl);
+	    AstConst* shiftp = nodep->rhsp()->castConst();
+	    if (shiftp && shiftp->num().mostSetBitP1() > 32) {
+		shiftp->v3error("Unsupported: Shifting of by over 32-bit number isn't supported."
+				<<" (This isn't a shift of 32 bits, but a shift of 2^32, or 4 billion!)\n");
+	    }
 	    if (nodep->widthMin()<=64  // Else we'll use large operators which work right
 		// C operator's width must be < maximum shift which is based on Verilog width
 		&& nodep->width() < (1LL<<nodep->rhsp()->widthMin())) {
@@ -301,25 +310,25 @@ private:
 	}
 	nodep->iterateChildren(*this); checkNode(nodep);
     }
-    virtual void visit(AstShiftL* nodep, AstNUser*) {
+    virtual void visit(AstShiftL* nodep) {
 	visitShift(nodep);
     }
-    virtual void visit(AstShiftR* nodep, AstNUser*) {
+    virtual void visit(AstShiftR* nodep) {
 	visitShift(nodep);
     }
-    virtual void visit(AstShiftRS* nodep, AstNUser*) {
+    virtual void visit(AstShiftRS* nodep) {
 	visitShift(nodep);
     }
     // Operators
-    virtual void visit(AstNodeTermop* nodep, AstNUser*) {
+    virtual void visit(AstNodeTermop* nodep) {
 	nodep->iterateChildren(*this); checkNode(nodep); }
-    virtual void visit(AstNodeUniop* nodep, AstNUser*) {
+    virtual void visit(AstNodeUniop* nodep) {
 	nodep->iterateChildren(*this); checkNode(nodep); }
-    virtual void visit(AstNodeBiop* nodep, AstNUser*) {
+    virtual void visit(AstNodeBiop* nodep) {
 	nodep->iterateChildren(*this); checkNode(nodep); }
-    virtual void visit(AstUCFunc* nodep, AstNUser*) {
+    virtual void visit(AstUCFunc* nodep) {
 	nodep->iterateChildren(*this); checkNode(nodep); }
-    virtual void visit(AstSel* nodep, AstNUser*) {
+    virtual void visit(AstSel* nodep) {
 	nodep->fromp()->iterateAndNext(*this);
 	{   // Only the 'from' is part of the assignment LHS
 	    bool prevAssign = m_assignLhs;
@@ -329,9 +338,9 @@ private:
 	    m_assignLhs = prevAssign;
 	}
 	checkNode(nodep); }
-    virtual void visit(AstConst* nodep, AstNUser*) {
+    virtual void visit(AstConst* nodep) {
 	nodep->iterateChildren(*this); checkNode(nodep); }
-    virtual void visit(AstNodeCond* nodep, AstNUser*) {
+    virtual void visit(AstNodeCond* nodep) {
 	nodep->iterateChildren(*this);
 	if (nodep->expr1p()->isWide()
 	    && !nodep->condp()->castConst()
@@ -344,7 +353,7 @@ private:
     }
 
     // Autoflush
-    virtual void visit(AstDisplay* nodep, AstNUser*) {
+    virtual void visit(AstDisplay* nodep) {
 	startStatement(nodep);
 	nodep->iterateChildren(*this);
 	m_stmtp = NULL;
@@ -362,7 +371,7 @@ private:
 	    }
 	}
     }
-    virtual void visit(AstSFormatF* nodep, AstNUser*) {
+    virtual void visit(AstSFormatF* nodep) {
 	nodep->iterateChildren(*this);
 	// Any strings sent to a display must be var of string data type,
 	// to avoid passing a pointer to a temporary.
@@ -376,8 +385,8 @@ private:
 
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstVar* nodep, AstNUser*) {}	// Don't hit varrefs under vars
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstVar* nodep) {}	// Don't hit varrefs under vars
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 

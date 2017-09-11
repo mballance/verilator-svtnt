@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -134,13 +134,13 @@ public:
     }
 private:
     // VISITORS
-    virtual void visit(AstCCall* nodep, AstNUser*) {
+    virtual void visit(AstCCall* nodep) {
 	addCall(nodep);
     }
     // Speed things up
-    virtual void visit(AstNodeAssign* nodep, AstNUser*) {}
-    virtual void visit(AstNodeMath* nodep, AstNUser*) {}
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNodeAssign* nodep) {}
+    virtual void visit(AstNodeMath* nodep) {}
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 public:
@@ -163,7 +163,7 @@ private:
     // OUTPUT:
     //  AstNode::user3()	-> bool. True to indicate duplicated
     // VISITORS
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->user3(true);
 	nodep->iterateChildren(*this);
     }
@@ -239,7 +239,7 @@ private:
 	    V3Hash hashval = it->first;
 	    AstNode* node1p = it->second;
 	    if (!node1p->castCFunc()) continue;
-	    if (hashval.isIllegal()) node1p->v3fatalSrc("Illegal (unhashed) nodes\n");
+	    if (hashval.isIllegal()) node1p->v3fatalSrc("Illegal (unhashed) nodes");
 	    for (V3Hashed::iterator eqit = it; eqit != m_hashed.end(); ++eqit) {
 		AstNode* node2p = eqit->second;
 		if (!(eqit->first == hashval)) break;
@@ -389,7 +389,7 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNetlist* nodep, AstNUser*) {
+    virtual void visit(AstNetlist* nodep) {
 	// Track all callers of each function
 	m_call.main(nodep);
 	//
@@ -398,7 +398,7 @@ private:
 	// Required so that a module instantiating another can benefit from collapsing.
 	nodep->iterateChildrenBackwards(*this);
     }
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	UINFO(4," MOD   "<<nodep<<endl);
 	m_modp = nodep;
 	m_modNFuncs = 0;
@@ -426,7 +426,7 @@ private:
 	}
 	m_modp = NULL;
     }
-    virtual void visit(AstCFunc* nodep, AstNUser*) {
+    virtual void visit(AstCFunc* nodep) {
 	m_funcp = nodep;
 	if (!nodep->dontCombine()) {
 	    if (m_state == STATE_HASH) {
@@ -437,7 +437,7 @@ private:
 	}
 	m_funcp = NULL;
     }
-    virtual void visit(AstNodeStmt* nodep, AstNUser*) {
+    virtual void visit(AstNodeStmt* nodep) {
 	if (m_state == STATE_HASH && m_funcp) {
 	    hashStatement(nodep);
 	}
@@ -448,10 +448,10 @@ private:
 
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstVar*, AstNUser*) {}
-    virtual void visit(AstTraceDecl*, AstNUser*) {}
-    virtual void visit(AstTraceInc*, AstNUser*) {}
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstVar*) {}
+    virtual void visit(AstTraceDecl*) {}
+    virtual void visit(AstTraceInc*) {}
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 

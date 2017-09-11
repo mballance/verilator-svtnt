@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -551,10 +551,11 @@ bool V3InFilter::readWholefile(const string& filename, V3InFilter::StrList& outl
 // V3OutFormatter: A class for printing to a file, with automatic indentation of C++ code.
 
 V3OutFormatter::V3OutFormatter(const string& filename, V3OutFormatter::Language lang)
-    : m_filename(filename), m_lang(lang), m_blockIndent(4)
+    : m_filename(filename), m_lang(lang)
     , m_lineno(1), m_column(0)
-    , m_nobreak(false), m_prependIndent(true), m_indentLevel(0)
-    , m_declSAlign(0), m_declNSAlign(0), m_declPadNum(0) {
+    , m_nobreak(false), m_prependIndent(true), m_indentLevel(0) {
+    m_blockIndent = v3Global.opt.decoration() ? 4 : 1;
+    m_commaWidth  = v3Global.opt.decoration() ? 50 : 150;
 }
 
 //----------------------------------------------------------------------
@@ -682,7 +683,11 @@ void V3OutFormatter::puts (const char *strg) {
 	    break;
 	case '(':
 	    indentInc();
-	    m_parenVec.push(m_column);
+	    if (v3Global.opt.decoration()) {
+		m_parenVec.push(m_column);  // Line up continuation with open paren, plus one indent
+	    } else {
+		m_parenVec.push(m_indentLevel*m_blockIndent); // Line up continuation with block+1
+	    }
 	    break;
 	case ')':
 	    if (!m_parenVec.empty()) m_parenVec.pop();
@@ -791,24 +796,6 @@ void V3OutFormatter::putcNoTracking (char chr) {
     putcOutput (chr);
 }
 
-void V3OutFormatter::putAlign (bool/*AlignClass*/ isStatic, int align, int size, const string& prefix) {
-    if (size==0) size=align;
-    int alignSize = size; if (alignSize>8) alignSize=8;
-    int& alignr = isStatic ? m_declSAlign : m_declNSAlign;
-    int padsize = alignSize - (alignr % alignSize);
-    if (padsize && padsize!=alignSize) {
-	// Modern versions of GCC no longer need this, they'll pad for us, so
-	// we'll save the work and danger of getting it wrong.
-	puts("//char\t");
-	puts(prefix);
-	puts("__VpadToAlign"+cvtToStr(alignr)
-	     +"["+cvtToStr(padsize)+"];\n");
-	alignr += padsize;
-	m_declPadNum++;
-    }
-    alignr += size;
-}
-
 //----------------------------------------------------------------------
 // Simple wrappers
 
@@ -834,4 +821,11 @@ V3OutFile::V3OutFile(const string& filename, V3OutFormatter::Language lang)
 V3OutFile::~V3OutFile() {
     if (m_fp) fclose(m_fp);
     m_fp = NULL;
+}
+
+void V3OutFile::putsForceIncs() {
+    const V3StringList& forceIncs = v3Global.opt.forceIncs();
+    for (V3StringList::const_iterator it = forceIncs.begin(); it != forceIncs.end(); ++it) {
+	puts("#include \""+*it+"\"\n");
+    }
 }

@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -161,11 +161,14 @@ public:
 
     // OPERATORS
     void v3errorEnd(ostringstream& str);
+    void v3errorEndFatal(ostringstream& str) VL_ATTR_NORETURN;
     string warnMore() const;
     inline bool operator==(FileLine rhs) const {
 	return (m_lineno==rhs.m_lineno && m_filenameno==rhs.m_filenameno && m_warnOn==rhs.m_warnOn);
     }
 };
 ostream& operator<<(ostream& os, FileLine* fileline);
+
+inline void FileLine::v3errorEndFatal(ostringstream& str) { v3errorEnd(str); assert(0); }
 
 #endif // Guard

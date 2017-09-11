@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -97,7 +97,6 @@ public:
 class V3OutFormatter {
     // TYPES
     enum MiscConsts {
-	WIDTH = 50,	// Width after which to break at ,'s
 	MAXSPACE = 80};	// After this indent, stop indenting more
 public:
     enum AlignClass {
@@ -115,14 +114,12 @@ private:
     string	m_filename;
     Language	m_lang;		// Indenting Verilog code
     int		m_blockIndent;	// Characters per block indent
+    int		m_commaWidth;	// Width after which to break at ,'s
     int		m_lineno;
     int		m_column;
     int		m_nobreak;	// Basic operator or begin paren, don't break next
     bool	m_prependIndent;
     int		m_indentLevel;	// Current {} indentation
-    int		m_declSAlign;	// Byte alignment of next declaration, statics
-    int		m_declNSAlign;	// Byte alignment of next declaration, nonstatics
-    int		m_declPadNum;	// Pad variable number
     stack<int>	m_parenVec;	// Stack of columns where last ( was
 
     int		endLevels(const char* strg);
@@ -144,10 +141,9 @@ public:
     void putsQuoted(const string& strg);
     void putBreak();  // Print linebreak if line is too wide
     void putBreakExpr();  // Print linebreak in expression if line is too wide
-    void putAlign(bool isstatic/*AlignClass*/, int align, int size=0/*=align*/, const string& prefix=""); // Declare a variable, with natural alignment
     void putbs(const char* strg) { putBreakExpr(); puts(strg); }
     void putbs(const string& strg) {  putBreakExpr(); puts(strg); }
-    bool exceededWidth() const { return m_column > WIDTH; }
+    bool exceededWidth() const { return m_column > m_commaWidth; }
     bool tokenStart(const char* cp, const char* cmp);
     bool tokenEnd(const char* cp);
     void indentInc() { m_indentLevel += m_blockIndent; }
@@ -173,6 +169,7 @@ class V3OutFile : public V3OutFormatter {
 public:
     V3OutFile(const string& filename, V3OutFormatter::Language lang);
     virtual ~V3OutFile();
+    void putsForceIncs();
 private:
     // CALLBACKS
     virtual void putcOutput(char chr) { fputc(chr, m_fp); }
@@ -193,7 +190,9 @@ public:
 	this->printf("%-19s\t%s;\n", classStar.c_str(), cellname.c_str());
     }
     virtual void putsHeader() { puts("// Verilated -*- C++ -*-\n"); }
-    virtual void putsIntTopInclude() { }
+    virtual void putsIntTopInclude() {
+	putsForceIncs();
+    }
     // Print out public/privates
     void resetPrivate() { m_private = 0; }
     void putsPrivate(bool setPrivate) {
@@ -213,18 +212,8 @@ public:
     virtual ~V3OutScFile() {}
     virtual void putsHeader() { puts("// Verilated -*- SystemC -*-\n"); }
     virtual void putsIntTopInclude() {
+	putsForceIncs();
 	puts("#include \"systemc.h\"\n");
-	puts("#include \"verilated_sc.h\"\n");
-    }
-};
-
-class V3OutSpFile : public V3OutCFile {
-public:
-    explicit V3OutSpFile(const string& filename) : V3OutCFile(filename) {}
-    virtual ~V3OutSpFile() {}
-    virtual void putsHeader() { puts("// Verilated -*- SystemC -*-\n"); }
-    virtual void putsIntTopInclude() {
-	puts("#include \"systemperl.h\"\n");
 	puts("#include \"verilated_sc.h\"\n");
     }
 };

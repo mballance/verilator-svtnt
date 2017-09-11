@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -62,7 +62,7 @@ public:
 	if (debug()>=9) cout<<"-nodeDel:  "<<(void*)(nodep)<<endl;
 	NodeMap::iterator iter = s_nodes.find(nodep);
 	if (iter==s_nodes.end() || !(iter->second & FLAG_ALLOCATED)) {
-	    ((AstNode*)(nodep))->v3fatalSrc("Deleting AstNode object that was never tracked or already deleted\n");
+	    ((AstNode*)(nodep))->v3fatalSrc("Deleting AstNode object that was never tracked or already deleted");
 	}
 	if (iter!=s_nodes.end()) s_nodes.erase(iter);
     }
@@ -71,7 +71,7 @@ public:
 	if (debug()>=9) cout<<"-nodeNew:  "<<(void*)(nodep)<<endl;
 	NodeMap::iterator iter = s_nodes.find(nodep);
 	if (iter!=s_nodes.end() || (iter->second & FLAG_ALLOCATED)) {
-	    ((AstNode*)(nodep))->v3fatalSrc("Newing AstNode object that is already allocated\n");
+	    ((AstNode*)(nodep))->v3fatalSrc("Newing AstNode object that is already allocated");
 	}
 	if (iter == s_nodes.end()) {
 	    int flags = FLAG_ALLOCATED;  // This int needed to appease GCC 4.1.2
@@ -94,16 +94,16 @@ public:
 	NodeMap::iterator iter = s_nodes.find(nodep);
 	if (iter == s_nodes.end()) {
 #ifdef VL_LEAK_CHECKS
-	    nodep->v3fatalSrc("AstNode is in tree, but not allocated\n");
+	    nodep->v3fatalSrc("AstNode is in tree, but not allocated");
 #endif
 	} else {
 	    if (!(iter->second & FLAG_ALLOCATED)) {
 #ifdef VL_LEAK_CHECKS
-		nodep->v3fatalSrc("AstNode is in tree, but not allocated\n");
+		nodep->v3fatalSrc("AstNode is in tree, but not allocated");
 #endif
 	    }
 	    if (iter->second & FLAG_IN_TREE) {
-		nodep->v3fatalSrc("AstNode is already in tree at another location\n");
+		nodep->v3fatalSrc("AstNode is already in tree at another location");
 	    }
 	}
 	int or_flags = FLAG_IN_TREE | (linkable?FLAG_LINKABLE:0);
@@ -192,7 +192,7 @@ private:
 	nodep->iterateChildrenConst(*this);
     }
     // VISITORS
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	processAndIterate(nodep);
     }
 public:
@@ -236,7 +236,16 @@ private:
 	nodep->iterateChildrenConst(*this);
 	BrokenTable::setUnder(nodep,false);
     }
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNodeAssign* nodep) {
+	processAndIterate(nodep);
+	if (v3Global.assertDTypesResolved()
+	    && nodep->brokeLhsMustBeLvalue()
+	    && nodep->lhsp()->castNodeVarRef()
+	    && !nodep->lhsp()->castNodeVarRef()->lvalue()) {
+	    nodep->v3fatalSrc("Assignment LHS is not an lvalue");
+	}
+    }
+    virtual void visit(AstNode* nodep) {
 	processAndIterate(nodep);
     }
 public:

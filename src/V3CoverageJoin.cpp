@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -103,19 +103,19 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNetlist* nodep, AstNUser*) {
+    virtual void visit(AstNetlist* nodep) {
 	// Find all Coverage's
 	nodep->iterateChildren(*this);
 	// Simplify
 	detectDuplicates();
     }
-    virtual void visit(AstCoverToggle* nodep, AstNUser*) {
+    virtual void visit(AstCoverToggle* nodep) {
 	m_toggleps.push_back(nodep);
 	nodep->iterateChildren(*this);
     }
     //--------------------
-    virtual void visit(AstNodeMath* nodep, AstNUser*) {}  // Accelerate
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNodeMath* nodep) {}  // Accelerate
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 

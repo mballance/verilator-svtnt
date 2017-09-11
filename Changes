@@ -1,14 +1,159 @@
 Revision history for Verilator
 
-The contributors that suggested a given feature are shown in [].  [by ...]
-indicates the contributor was also the author of the fix; Thanks!
+The contributors that suggested a given feature are shown in []. Thanks!
+
+* Verilator 3.910 2017-09-07
+
+***   SystemPerl mode (-sp-deprecated) has been removed.
+
+****  Update keyword warnings to include C++11 and others.
 
 
-* Verilator 3.885 devel
+* Verilator 3.908 2017-08-28
+
+****  Support x in $readmem, bug1180. [Arthur Kahlich]
+
+****  Support packed struct DPI imports, bug1190. [Rob Stoddard]
+
+****  Fix GCC 6 warnings.
+
+****  Fix compile error on unused VL_VALUEPLUSARGS_IW, bug1181. [Thomas J Whatson]
+
+****  Fix undefined VL_POW_WWI. [Clifford Wolf]
+
+****  Fix internal error on unconnected inouts, bug1187. [Rob Stoddard]
+
+
+* Verilator 3.906 2017-06-22
+
+***   Support set_time_unit/set_time_precision in C traces, msg2261.
+
+***   Fix extract of packed array with non-zero LSB, bug1172. [James Pallister]
+
+***   Fix shifts by more than 32-bit numbers, bug1174. [Clifford Wolf]
+
+***   Fix power operator on wide constants, bug761. [Clifford Wolf]
+
+***   Fix .* on interface pins, bug1176. [Maciej Piechotka]
+
+
+* Verilator 3.904 2017-05-30
+
+***   Fix non-cutable ordering loops on clock arrays, bug1009. [Todd Strader]
+
+***   Support ports of array of reals, bug1154. [J Briquet]
+
+***   Support arrayed parameter overrides, bug1153. [John Stevenson]
+
+***   Support $value$plusargs with variables, bug1165. [Wesley Terpstra]
+
+****  Support modport access to un-modport objects, bug1161. [Todd Strader]
+
+****  Add stack trace when can't optimize function, bug1158. [Todd Strader]
+
+****  Add warning on mis-sized literal, bug1156. [Todd Strader]
+
+****  Fix interface functions returning wrong parameters, bug996. [Todd Strader]
+
+****  Fix non-arrayed cells with interface arrays, bug1153. [John Stevenson]
+
+****  Fix --assert with complex case statements, bug1164. [Enzo Chi]
+
+
+* Verilator 3.902 2017-04-02
+
+**    Add -FI option to force includes,msg2146. [Amir Gonnen]
+
+**    Add --relative-includes. [Rob Stoddard]
+
+***   Add error on duplicate pattern assignments, bug1145. [Johan Bjork]
+
+****  Fix error on improperly widthed default function, bug984. [Todd Strader]
+
+****  Fix 2009 localparam syntax, msg2139. [Galen Seitz]
+
+****  Fix ugly interface-to-non-interface errors, bug1112. [Johan Bjork]
+
+****  Fix LDFLAGS and CFLAGS not preserving order, bug1130. [Olof Kindgren]
+
+****  Fix internal error on initializing parameter array, bug1131. [Jie Xu]
+
+****  Fix internal error on interface arrays, bug1135. [John Stevenson]
+
+****  Fix calling sformatf to display, and elab $displays, bug1139. [Johan Bjork]
+
+****  Fix realpath compile issue on MSVC++, bug1141. [Miodrag Milanovic]
+
+****  Fix missing error on interface size mismatch, bug1143.  [Johan Bjork]
+
+****  Fix error on parameters with dotted references, bug1146. [Johan Bjork]
+
+****  Fix wreal not handling continuous assign, bug1150. [J Briquet]
+
+****  Fix nested structure parameter selects, bug1150. [J Briquet]
+
+
+* Verilator 3.900 2017-01-15
+
+**    Internal code changes for improved compatibility and performance.
+
+***   Support old-style $display($time), bug467. [John Demme]
+
+****  With --bbox-unsup, suppress desassign and mixed edges, bug1120. [Galen Seitz]
+
+****  Fix parsing sensitivity with &&, bug934. [Luke Yang]
+
+****  Fix internal error on double-for loop unrolling, bug1044. [Jan Egil Ruud]
+
+****  Fix internal error on unique casez with --assert, bug1117. [Enzo Chi]
+
+****  Fix bad code when tracing array of structs, bug1122. [Andrew Bardsley]
+
+
+* Verilator 3.890 2016-11-25
+
+***   Honor --output-split on coverage constructors, bug1098. [Johan Bjork]
+
+****  Fix various issues when making outside of the kit.
+
+****  Fix flex 2.6.2 bug, bug1103. [Sergey Kvachonok]
+
+****  Fix error on bad interface name, bug1097. [Todd Strader]
+
+****  Fix error on referencing variable in parent, bug1099. [Ian Thompson]
+
+****  Fix type parameters with low optimization, bug1101. [Stefan Wallentowitz]
+
+
+* Verilator 3.888 2016-10-14
+
+**    Support foreach, bug1078. [Xuan Guo]
+
+***   Add --no-decoration to remove output comments, msg2015. [Frederic Requin]
+
+***   If VM_PARALLEL_BUILDS=1, use OPT_FAST and OPT_SLOW. [Frederic Requin]
+      Set VM_DEFAULT_RULES=0 for old behavior.
+
+****  Add error on DPI functions > 32 bits, msg1995. [Elliot Mednick]
+
+****  Fix SystemC compiles with VPI, bug1081. [Arthur Kahlich]
+
+****  Fix error on wide numbers that represent shifts, msg1991, bug1088. [Mandy Xu]
+
+****  Improve Verilation performance on internal strings, msg1975. [Johan Bjork]
+
+****  Improve Verilation performance on trace duplicates, bug1090. [Johan Bjork]
+
+
+* Verilator 3.886 2016-07-30
 
 ****  Fix enum values of 11-16 bits wide using .next/.prev, bug1062. [Brian Flachs]
 
 ****  Fix false warnings on non-power-2 enums using .next/.prev.
+
+****  Fix comparison of unpacked arrays, bug1071. [Andrew Bardsley]
+
+****  Fix compiler warning in GCC 6. [David Horton]
 
 
 * Verilator 3.884 2016-05-18
@@ -2732,7 +2877,7 @@ of input ports exists for tracing.
 
 This uses outline mode in Emacs.  See C-h m [M-x describe-mode].
 
-Copyright 2001-2016 by Wilson Snyder.  This program is free software; you
+Copyright 2001-2017 by Wilson Snyder.  This program is free software; you
 can redistribute it and/or modify it under the terms of either the GNU
 Lesser General Public License Version 3 or the Perl Artistic License
 Version 2.0.

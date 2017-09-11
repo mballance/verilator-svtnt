@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -39,7 +39,7 @@
 #include "V3Const.h"
 #include "V3Coverage.h"
 #include "V3CoverageJoin.h"
-#include "V3VarResets.h"
+#include "V3CCtors.h"
 #include "V3Dead.h"
 #include "V3Delayed.h"
 #include "V3Depth.h"
@@ -106,7 +106,7 @@ AstNetlist* V3Global::makeNetlist() {
 void V3Global::checkTree() { rootp()->checkTree(); }
 
 void V3Global::clear() {
-    if (m_rootp) m_rootp->deleteTree(); m_rootp=NULL;
+    if (m_rootp) { m_rootp->deleteTree(); m_rootp=NULL; }
 }
 
 void V3Global::readFiles() {
@@ -500,7 +500,7 @@ void process () {
     V3Error::abortIfErrors();
     if (!v3Global.opt.lintOnly()
 	&& !v3Global.opt.xmlOnly()) {
-	V3VarResets::emitResets();
+	V3CCtors::cctorsAll();
     }
 
     // Output the text
@@ -568,8 +568,6 @@ int main(int argc, char** argv, char** env) {
     V3Options::getenvSYSTEMC_ARCH();
     V3Options::getenvSYSTEMC_INCLUDE();
     V3Options::getenvSYSTEMC_LIBDIR();
-    V3Options::getenvSYSTEMPERL();
-    V3Options::getenvSYSTEMPERL_INCLUDE();
 
     V3Error::abortIfErrors();
 

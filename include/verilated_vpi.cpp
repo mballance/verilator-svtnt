@@ -1,7 +1,7 @@
 // -*- mode: C++; c-file-style: "cc-mode" -*-
 //*************************************************************************
 //
-// Copyright 2009-2016 by Wilson Snyder. This program is free software; you can
+// Copyright 2009-2017 by Wilson Snyder. This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License.
 // Version 2.0.
@@ -26,6 +26,9 @@
 //=========================================================================
 
 
+#if VM_SC
+# include "verilated_sc.h"
+#endif
 #include "verilated.h"
 #include "verilated_vpi.h"
 
@@ -751,7 +754,7 @@ void vpi_get_value(vpiHandle object, p_vpi_value value_p) {
 		    vl_fatal(__FILE__,__LINE__,"", "vpi_get_value with more than VL_MULS_MAX_WORDS; increase and recompile");
 		}
 		WDataInP datap = ((IData*)(vop->varDatap()));
-		for (int i=0; i<words; i++) {
+		for (int i=0; i<words; ++i) {
 		    out[i].aval = datap[i];
 		    out[i].bval = 0;
 		}
@@ -788,7 +791,7 @@ void vpi_get_value(vpiHandle object, p_vpi_value value_p) {
 		  _VL_VPI_WARNING(__FILE__, __LINE__, "%s: Truncating string value of %s for %s as buffer size (%d, VL_MULS_MAX_WORDS=%d) is less than required (%d)",
 				  VL_FUNC, VerilatedVpiError::strFromVpiVal(value_p->format), vop->fullname(), outStrSz, VL_MULS_MAX_WORDS, bits);
 		}
-		for (i=0; i<bits; i++) {
+		for (i=0; i<bits; ++i) {
 		    char val = (datap[i>>3]>>(i&7))&1;
 		    outStr[bits-i-1] = val?'1':'0';
 		}
@@ -818,7 +821,7 @@ void vpi_get_value(vpiHandle object, p_vpi_value value_p) {
 				    VL_FUNC, VerilatedVpiError::strFromVpiVal(value_p->format), vop->fullname(), outStrSz, VL_MULS_MAX_WORDS, chars);
 		    chars = outStrSz;
 	        }
-		for (i=0; i<chars; i++) {
+		for (i=0; i<chars; ++i) {
                     div_t idx = div(i*3, 8);
 		    int val = datap[idx.quot];
                     if ((idx.quot+1)<bytes) {
@@ -879,7 +882,7 @@ void vpi_get_value(vpiHandle object, p_vpi_value value_p) {
 				  VL_FUNC, VerilatedVpiError::strFromVpiVal(value_p->format), vop->fullname(), outStrSz, VL_MULS_MAX_WORDS, chars);
 		  chars = outStrSz;
 		}
-		for (i=0; i<chars; i++) {
+		for (i=0; i<chars; ++i) {
 		    char val = (datap[i>>1]>>((i&1)<<2))&15;
                     static char hex[] = "0123456789abcdef";
                     if (i==(chars-1)) {
@@ -919,7 +922,7 @@ void vpi_get_value(vpiHandle object, p_vpi_value value_p) {
 				  vop->fullname(), outStrSz, VL_MULS_MAX_WORDS, bytes);
 		  bytes = outStrSz;
 		}
-		for (i=0; i<bytes; i++) {
+		for (i=0; i<bytes; ++i) {
 		    char val = datap[bytes-i-1];
                      // other simulators replace [leading?] zero chars with spaces, replicate here.
 		    outStr[i] = val?val:' ';
@@ -943,11 +946,10 @@ void vpi_get_value(vpiHandle object, p_vpi_value value_p) {
 	    case VLVT_UINT32:
 		value_p->value.integer = *((IData*)(vop->varDatap()));
 		return;
-	    case VLVT_WDATA:
-	    case VLVT_UINT64:
-		// Not legal
-		value_p->value.integer = 0;
+	    case VLVT_WDATA: // FALLTHRU
+	    case VLVT_UINT64: // FALLTHRU
 	    default:
+		value_p->value.integer = 0;
                 _VL_VPI_ERROR(__FILE__, __LINE__, "%s: Unsupported format (%s) for %s",
 			      VL_FUNC, VerilatedVpiError::strFromVpiVal(value_p->format), vop->fullname());
 		return;
@@ -1004,7 +1006,7 @@ vpiHandle vpi_put_value(vpiHandle object, p_vpi_value value_p,
 	    case VLVT_WDATA: {
 		int words = VL_WORDS_I(vop->varp()->range().elements());
 		WDataOutP datap = ((IData*)(vop->varDatap()));
-		for (int i=0; i<words; i++) {
+		for (int i=0; i<words; ++i) {
 		    datap[i] = value_p->value.vector[i].aval;
                     if (i==(words-1)) {
 			datap[i] &= vop->mask();
@@ -1034,7 +1036,7 @@ vpiHandle vpi_put_value(vpiHandle object, p_vpi_value value_p,
 		int bits = vop->varp()->range().elements();
 		int len	 = strlen(value_p->value.str);
 		CData* datap = ((CData*)(vop->varDatap()));
-		for (int i=0; i<bits; i++) {
+		for (int i=0; i<bits; ++i) {
                     char set = (i < len)?(value_p->value.str[len-i-1]=='1'):0;
                     // zero bits 7:1 of byte when assigning to bit 0, else
                     // or in 1 if bit set
@@ -1064,7 +1066,7 @@ vpiHandle vpi_put_value(vpiHandle object, p_vpi_value value_p,
 		CData* datap = ((CData*)(vop->varDatap()));
                 div_t idx;
                 datap[0] = 0; // reset zero'th byte
-		for (int i=0; i<chars; i++) {
+		for (int i=0; i<chars; ++i) {
                     union {
 			char  byte[2];
                         short half;
@@ -1102,7 +1104,7 @@ vpiHandle vpi_put_value(vpiHandle object, p_vpi_value value_p,
                     datap[idx.quot+1] &= vop->mask_byte(idx.quot+1);
 		}
                 // zero off remaining top bytes
-                for (int i=idx.quot+2; i<bytes; i++) {
+                for (int i=idx.quot+2; i<bytes; ++i) {
 		    datap[i] = 0;
 		}
 		return object;
@@ -1152,7 +1154,7 @@ vpiHandle vpi_put_value(vpiHandle object, p_vpi_value value_p,
 		    val += 2;
 		}
 		int len = strlen(val);
-		for (int i=0; i<chars; i++) {
+		for (int i=0; i<chars; ++i) {
                     char hex;
                     // compute hex digit value
                     if (i < len) {
@@ -1194,7 +1196,7 @@ vpiHandle vpi_put_value(vpiHandle object, p_vpi_value value_p,
 		int bytes = VL_BYTES_I(vop->varp()->range().elements());
 		int len	  = strlen(value_p->value.str);
 		CData* datap = ((CData*)(vop->varDatap()));
-		for (int i=0; i<bytes; i++) {
+		for (int i=0; i<bytes; ++i) {
 		    datap[i] = (i < len)?value_p->value.str[len-i-1]:0; // prepend with 0 values before placing string the least signifcant bytes
 		}
 		return object;
@@ -1252,7 +1254,7 @@ void vpi_get_time(vpiHandle object, p_vpi_time time_p) {
     }
     if (time_p->type == vpiSimTime) {
 	QData qtime = VL_TIME_Q();
-	IData itime[2];
+	WData itime[2];
 	VL_SET_WQ(itime, qtime);
 	time_p->low = itime[0];
 	time_p->high = itime[1];

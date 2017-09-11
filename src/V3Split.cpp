@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -272,12 +272,12 @@ private:
 	//UINFO(9,"    push "<<nodep<<endl);
 	SplitLogicVertex* vertexp = new SplitLogicVertex(&m_graph, nodep);
 	m_stmtStackps.push_back(vertexp);
-	if (nodep->user3p()) nodep->v3fatalSrc("user3p should not be used; cleared in processBlock\n");
+	if (nodep->user3p()) nodep->v3fatalSrc("user3p should not be used; cleared in processBlock");
 	nodep->user3p(vertexp);
     }
     void scoreboardPopStmt() {
 	//UINFO(9,"    pop"<<endl);
-	if (m_stmtStackps.empty()) v3fatalSrc("Stack underflow\n");
+	if (m_stmtStackps.empty()) v3fatalSrc("Stack underflow");
 	m_stmtStackps.pop_back();
     }
 
@@ -346,8 +346,8 @@ private:
 	    SplitLogicVertex* vvertexp = (SplitLogicVertex*)nextp->user3p();
 	    vvertexp->splitColor(vvertexp->color());
 	    uint32_t color = vvertexp->splitColor();
-	    if (color >= numVertexes) nextp->v3fatalSrc("More colors than vertexes!\n");
-	    if (!color) nextp->v3fatalSrc("No node color assigned\n");
+	    if (color >= numVertexes) nextp->v3fatalSrc("More colors than vertexes");
+	    if (!color) nextp->v3fatalSrc("No node color assigned");
 	    if (lastOfColor[color]) {
 		new SplitStrictEdge(&m_graph, lastOfColor[color], vvertexp);
 	    }
@@ -411,7 +411,8 @@ private:
 		    UINFO(6, "    Color="<<color<<"  New order: "<<nextp<<endl);
 		    if (nextp == nodep && !splitAlwaysp) nodep->unlinkFrBack(&replaceHandle);
 		    else nextp->unlinkFrBack();
-		    newListp = newListp->addNext(nextp);
+		    if (newListp) newListp = newListp->addNext(nextp);
+		    else newListp = nextp;
 		}
 		if (splitAlwaysp) {
 		    ++m_statSplits;
@@ -465,14 +466,14 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstAlways* nodep, AstNUser*) {
+    virtual void visit(AstAlways* nodep) {
 	UINFO(4,"   ALW   "<<nodep<<endl);
 	if (debug()>=9) nodep->dumpTree(cout,"   alwIn:: ");
 	scoreboardClear();
 	processBlock(nodep->bodysp());
 	if (debug()>=9) nodep->dumpTree(cout,"   alwOut: ");
     }
-    virtual void visit(AstNodeIf* nodep, AstNUser*) {
+    virtual void visit(AstNodeIf* nodep) {
 	if (!m_reorder) {
 	    nodep->iterateChildren(*this);
 	} else {
@@ -485,13 +486,13 @@ private:
     // We don't do AstNodeFor/AstWhile loops, due to the standard question
     // of what is before vs. after
 
-    virtual void visit(AstAssignDly* nodep, AstNUser*) {
+    virtual void visit(AstAssignDly* nodep) {
 	m_inDly = true;
 	UINFO(4,"    ASSIGNDLY "<<nodep<<endl);
 	nodep->iterateChildren(*this);
 	m_inDly = false;
     }
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	if (!m_stmtStackps.empty()) {
 	    AstVarScope* vscp = nodep->varScopep();
 	    if (!vscp) nodep->v3fatalSrc("Not linked");
@@ -539,7 +540,7 @@ private:
 	    }
 	}
     }
-    virtual void visit(AstJumpGo* nodep, AstNUser*) {
+    virtual void visit(AstJumpGo* nodep) {
 	// Jumps will disable reordering at all levels
 	// This is overly pessimistic; we could treat jumps as barriers, and
 	// reorder everything between jumps/labels, however jumps are rare
@@ -551,7 +552,7 @@ private:
 
     //--------------------
     // Default
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	// **** SPECIAL default type that sets PLI_ORDERING
 	if (!m_stmtStackps.empty() && !nodep->isPure()) {
 	    UINFO(9,"         NotSplittable "<<nodep<<endl);

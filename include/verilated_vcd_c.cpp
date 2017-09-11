@@ -3,7 +3,7 @@
 //
 // THIS MODULE IS PUBLICLY LICENSED
 //
-// Copyright 2001-2016 by Wilson Snyder.  This program is free software;
+// Copyright 2001-2017 by Wilson Snyder.  This program is free software;
 // you can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License Version 2.0.
 //
@@ -412,7 +412,7 @@ void VerilatedVcd::dumpHeader () {
     // We detect the spaces in module names to determine hierarchy.  This
     // allows signals to be declared without fixed ordering, which is
     // required as Verilog signals might be separately declared from
-    // "SP_TRACE" signals.
+    // SC module signals.
 
     // Print the signal names
     const char* lastName = "";
@@ -570,6 +570,7 @@ void VerilatedVcd::declDouble   (vluint32_t code, const char* name, int arraynum
 //=============================================================================
 
 void VerilatedVcd::fullDouble (vluint32_t code, const double newval) {
+    // cppcheck-suppress invalidPointerCast
     (*((double*)&m_sigs_oldvalp[code])) = newval;
     // Buffer can't overflow before sprintf; we sized during declaration
     sprintf(m_writep, "r%.16g", newval);
@@ -578,6 +579,7 @@ void VerilatedVcd::fullDouble (vluint32_t code, const double newval) {
     bufferCheck();
 }
 void VerilatedVcd::fullFloat (vluint32_t code, const float newval) {
+    // cppcheck-suppress invalidPointerCast
     (*((float*)&m_sigs_oldvalp[code])) = newval;
     // Buffer can't overflow before sprintf; we sized during declaration
     sprintf(m_writep, "r%.16g", (double)newval);

@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -60,14 +60,14 @@ private:
     //int m_debug;  int debug() { return m_debug; }
 
     // VISITORS
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	UINFO(4," MOD   "<<nodep<<endl);
 	//if (nodep->name() == "t_chg") m_debug = 9; else m_debug=0;
 	m_modp = nodep;
 	nodep->iterateChildren(*this);
 	m_modp = NULL;
     }
-    virtual void visit(AstCell* nodep, AstNUser*) {
+    virtual void visit(AstCell* nodep) {
 	UINFO(4,"  CELL   "<<nodep<<endl);
 	m_cellp = nodep;
 	//VV*****  We reset user1p() on each cell!!!
@@ -75,7 +75,7 @@ private:
 	nodep->iterateChildren(*this);
 	m_cellp = NULL;
     }
-    virtual void visit(AstPin* nodep, AstNUser*) {
+    virtual void visit(AstPin* nodep) {
 	// PIN(p,expr) -> ASSIGNW(VARXREF(p),expr)    (if sub's input)
 	//	      or  ASSIGNW(expr,VARXREF(p))    (if sub's output)
 	UINFO(4,"   PIN  "<<nodep<<endl);
@@ -90,7 +90,7 @@ private:
 	    // Make a ASSIGNW (expr, pin)
 	    AstNode*  exprp  = nodep->exprp()->cloneTree(false);
 	    if (exprp->width() != nodep->modVarp()->width())
-		nodep->v3fatalSrc("Width mismatch, should have been handled in pinReconnectSimple\n");
+		nodep->v3fatalSrc("Width mismatch, should have been handled in pinReconnectSimple");
 	    if (nodep->modVarp()->isInout()) {
 		nodep->v3fatalSrc("Unsupported: Verilator is a 2-state simulator");
 	    } else if (nodep->modVarp()->isOutput()) {
@@ -125,7 +125,7 @@ private:
 	nodep->unlinkFrBack()->deleteTree(); VL_DANGLING(nodep);
     }
 
-    virtual void visit(AstUdpTable* nodep, AstNUser*) {
+    virtual void visit(AstUdpTable* nodep) {
 	if (!v3Global.opt.bboxUnsup()) {
 	    // If we support primitives, update V3Undriven to remove special case
 	    nodep->v3error("Unsupported: Verilog 1995 UDP Tables.  Use --bbox-unsup to ignore tables.");
@@ -133,23 +133,82 @@ private:
     }
 
     // Save some time
-    virtual void visit(AstNodeAssign*, AstNUser*) {}
-    virtual void visit(AstAlways*, AstNUser*) {}
+    virtual void visit(AstNodeAssign*) {}
+    virtual void visit(AstAlways*) {}
 
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 public:
     // CONSTUCTORS
-    explicit InstVisitor(AstNode* nodep) {
+    explicit InstVisitor(AstNetlist* nodep) {
 	m_modp=NULL;
 	m_cellp=NULL;
 	//
 	nodep->accept(*this);
     }
     virtual ~InstVisitor() {}
+};
+
+//######################################################################
+
+class InstDeModVarVisitor : public AstNVisitor {
+    // Expand all module variables, and save names for later reference
+private:
+    // STATE
+    typedef map<string,AstVar*> VarNameMap;
+    VarNameMap	m_modVarNameMap;	// Per module, name of cloned variables
+
+    static int debug() {
+	static int level = -1;
+	if (VL_UNLIKELY(level < 0)) level = v3Global.opt.debugSrcLevel(__FILE__);
+	return level;
+    }
+
+    // VISITORS
+    virtual void visit(AstVar* nodep) {
+	if (nodep->dtypep()->castIfaceRefDType()) {
+	    UINFO(8,"   dm-1-VAR    "<<nodep<<endl);
+	    insert(nodep);
+	}
+	nodep->iterateChildren(*this);
+    }
+    // Save some time
+    virtual void visit(AstNodeMath*) {}
+    // Default: Just iterate
+    virtual void visit(AstNode* nodep) {
+	nodep->iterateChildren(*this);
+    }
+public:
+    // METHODS
+    void insert(AstVar* nodep) {
+	UINFO(8,"    dmINSERT    "<<nodep<<endl);
+	m_modVarNameMap.insert(make_pair(nodep->name(), nodep));
+    }
+    AstVar* find(const string& name) {
+	VarNameMap::iterator it = m_modVarNameMap.find(name);
+	if (it != m_modVarNameMap.end()) {
+	    return it->second;
+	} else {
+	    return NULL;
+	}
+    }
+    void dump() {
+	for (VarNameMap::iterator it=m_modVarNameMap.begin(); it!=m_modVarNameMap.end(); ++it) {
+	    cout<<"-namemap: "<<it->first<<" -> "<<it->second<<endl;
+	}
+    }
+public:
+    // CONSTUCTORS
+    explicit InstDeModVarVisitor() {}
+    void accept(AstNodeModule* nodep) {
+	UINFO(8,"  dmMODULE    "<<nodep<<endl);
+	m_modVarNameMap.clear();
+	nodep->accept(*this);
+    }
+    virtual ~InstDeModVarVisitor() {}
 };
 
 //######################################################################
@@ -161,6 +220,9 @@ private:
     AstRange*	m_cellRangep;	// Range for arrayed instantiations, NULL for normal instantiations
     int		m_instNum;	// Current instantiation number
     int		m_instLsb;	// Current instantiation number
+    InstDeModVarVisitor  m_deModVars;	// State of variables for current cell module
+
+    typedef map<string,AstVar*> VarNameMap;
 
     static int debug() {
 	static int level = -1;
@@ -169,10 +231,46 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstCell* nodep, AstNUser*) {
+    virtual void visit(AstVar* nodep) {
+	if (nodep->dtypep()->castUnpackArrayDType()
+	    && nodep->dtypep()->castUnpackArrayDType()->subDTypep()->castIfaceRefDType()) {
+	    UINFO(8,"   dv-vec-VAR    "<<nodep<<endl);
+	    AstUnpackArrayDType* arrdtype = nodep->dtypep()->castUnpackArrayDType();
+	    AstNode* prevp = NULL;
+	    for (int i = arrdtype->lsb(); i <= arrdtype->msb(); ++i) {
+		string varNewName = nodep->name() + "__BRA__" + cvtToStr(i) + "__KET__";
+		UINFO(8,"VAR name insert "<<varNewName<<"  "<<nodep<<endl);
+		if (!m_deModVars.find(varNewName)) {
+		    AstIfaceRefDType* ifaceRefp = arrdtype->subDTypep()->castIfaceRefDType()->cloneTree(false);
+		    arrdtype->addNextHere(ifaceRefp);
+		    ifaceRefp->cellp(NULL);
+
+		    AstVar* varNewp = nodep->cloneTree(false);
+		    varNewp->name(varNewName);
+		    varNewp->origName(varNewp->origName() + "__BRA__" + cvtToStr(i) + "__KET__");
+		    varNewp->dtypep(ifaceRefp);
+		    m_deModVars.insert(varNewp);
+		    if (!prevp) {
+			prevp = varNewp;
+		    } else {
+			prevp->addNextHere(varNewp);
+		    }
+		}
+	    }
+	    if (prevp) nodep->addNextHere(prevp);
+	    if (prevp && debug()==9) { prevp->dumpTree(cout, "newintf: "); cout << endl; }
+	}
+	nodep->iterateChildren(*this);
+    }
+
+    virtual void visit(AstCell* nodep) {
+	UINFO(4,"  CELL   "<<nodep<<endl);
+	// Find submodule vars
+	if (!nodep->modp()) nodep->v3fatalSrc("Unlinked");
+	m_deModVars.accept(nodep->modp());
+	//
 	if (nodep->rangep()) {
 	    m_cellRangep = nodep->rangep();
-	    UINFO(4,"  CELL   "<<nodep<<endl);
 
 	    AstVar* ifaceVarp = nodep->nextp()->castVar();
 	    bool isIface = ifaceVarp
@@ -191,9 +289,10 @@ private:
 		// The spec says we add [x], but that won't work in C...
 		newp->name(newp->name()+"__BRA__"+cvtToStr(m_instNum)+"__KET__");
 		newp->origName(newp->origName()+"__BRA__"+cvtToStr(m_instNum)+"__KET__");
+		UINFO(8,"    CELL loop  "<<newp<<endl);
 
-		// If this AstCell is actually an interface instantiation, let's ensure we also clone
-		// the IfaceRef.
+		// If this AstCell is actually an interface instantiation, also clone the IfaceRef
+		// within the same parent module as the cell
 		if (isIface) {
 		    AstUnpackArrayDType* arrdtype = ifaceVarp->dtypep()->castUnpackArrayDType();
 		    AstIfaceRefDType* origIfaceRefp = arrdtype->subDTypep()->castIfaceRefDType();
@@ -221,37 +320,12 @@ private:
 	    }
 	    nodep->unlinkFrBack(); pushDeletep(nodep); VL_DANGLING(nodep);
 	} else {
+	    m_cellRangep = NULL;
 	    nodep->iterateChildren(*this);
 	}
     }
 
-    virtual void visit(AstVar* nodep, AstNUser*) {
-	bool isIface = nodep->dtypep()->castUnpackArrayDType()
-	    && nodep->dtypep()->castUnpackArrayDType()->subDTypep()->castIfaceRefDType();
-	if (isIface) {
-	    AstUnpackArrayDType* arrdtype = nodep->dtypep()->castUnpackArrayDType();
-	    AstNode* prev = NULL;
-	    for (int i = arrdtype->lsb(); i <= arrdtype->msb(); ++i) {
-		AstVar* varNewp = nodep->cloneTree(false);
-		AstIfaceRefDType* ifaceRefp = arrdtype->subDTypep()->castIfaceRefDType()->cloneTree(false);
-		arrdtype->addNextHere(ifaceRefp);
-		ifaceRefp->cellp(NULL);
-		varNewp->name(varNewp->name() + "__BRA__" + cvtToStr(i) + "__KET__");
-		varNewp->origName(varNewp->origName() + "__BRA__" + cvtToStr(i) + "__KET__");
-		varNewp->dtypep(ifaceRefp);
-		if (!prev) {
-		    prev = varNewp;
-		} else {
-		    prev->addNextHere(varNewp);
-		}
-	    }
-	    nodep->addNextHere(prev);
-	    if (debug()==9) { prev->dumpTree(cout, "newintf: "); cout << endl; }
-	}
-	nodep->iterateChildren(*this);
-    }
-
-    virtual void visit(AstPin* nodep, AstNUser*) {
+    virtual void visit(AstPin* nodep) {
 	// Any non-direct pins need reconnection with a part-select
 	if (!nodep->exprp()) return; // No-connect
 	if (m_cellRangep) {
@@ -303,7 +377,7 @@ private:
 		}
 		string index = AstNode::encodeNumber(constp->toSInt());
 		AstVarRef* varrefp = arrselp->lhsp()->castVarRef();
-		AstVarXRef* newp = new AstVarXRef(nodep->fileline(),varrefp->name () + "__BRA__" + index  + "__KET__", "", true);
+		AstVarXRef* newp = new AstVarXRef(nodep->fileline(), varrefp->name()+"__BRA__"+index+"__KET__", "", true);
 		newp->dtypep(nodep->modVarp()->dtypep());
 		newp->packagep(varrefp->packagep());
 		arrselp->addNextHere(newp);
@@ -319,24 +393,39 @@ private:
 	    // Clone the var referenced by the pin, and clone each var referenced by the varref
 	    // Clone pin varp:
 	    for (int i = pinArrp->lsb(); i <= pinArrp->msb(); ++i) {
-		AstVar* varNewp = pinVarp->cloneTree(false);
-		AstIfaceRefDType* ifaceRefp = pinArrp->subDTypep()->castIfaceRefDType();
-		ifaceRefp->cellp(NULL);
-		varNewp->name(varNewp->name() + "__BRA__" + cvtToStr(i) + "__KET__");
-		varNewp->origName(varNewp->origName() + "__BRA__" + cvtToStr(i) + "__KET__");
-		varNewp->dtypep(ifaceRefp);
-		if (!prevp) {
-		    prevp = varNewp;
+		string varNewName = pinVarp->name() + "__BRA__" + cvtToStr(i) + "__KET__";
+		AstVar* varNewp = NULL;
+
+		// Only clone the var once for all usages of a given child module
+		if (!pinVarp->backp()) {
+		    varNewp = m_deModVars.find(varNewName);
 		} else {
-		    prevp->addNextHere(varNewp);
+		    AstIfaceRefDType* ifaceRefp = pinArrp->subDTypep()->castIfaceRefDType();
+		    ifaceRefp->cellp(NULL);
+		    varNewp = pinVarp->cloneTree(false);
+		    varNewp->name(varNewName);
+		    varNewp->origName(varNewp->origName() + "__BRA__" + cvtToStr(i) + "__KET__");
+		    varNewp->dtypep(ifaceRefp);
+		    m_deModVars.insert(varNewp);
+		    if (!prevp) {
+			prevp = varNewp;
+		    } else {
+			prevp->addNextHere(varNewp);
+		    }
 		}
+		if (!varNewp) {
+		    if (debug()>=9) m_deModVars.dump();
+		    nodep->v3fatalSrc("Module dearray failed for "<<AstNode::prettyName(varNewName));
+		}
+
+		// But clone the pin for each module instance
 		// Now also clone the pin itself and update its varref
 		AstPin* newp = nodep->cloneTree(false);
 		newp->modVarp(varNewp);
 		newp->name(newp->name() + "__BRA__" + cvtToStr(i) + "__KET__");
 		// And replace exprp with a new varxref
 		AstVarRef* varrefp = newp->exprp()->castVarRef();
-		string newname = varrefp->name () + "__BRA__" + cvtToStr(i) + "__KET__";
+		string newname = varrefp->name() + "__BRA__" + cvtToStr(i) + "__KET__";
 		AstVarXRef* newVarXRefp = new AstVarXRef (nodep->fileline(), newname, "", true);
 		newVarXRefp->varp(newp->modVarp());
 		newVarXRefp->dtypep(newp->modVarp()->dtypep());
@@ -348,24 +437,25 @@ private:
 		    prevPinp->addNextHere(newp);
 		}
 	    }
-	    pinVarp->replaceWith(prevp);
+	    if (prevp) {
+		pinVarp->replaceWith(prevp);
+		pushDeletep(pinVarp);
+	    }  // else pinVarp already unlinked when another instance did this step
 	    nodep->replaceWith(prevPinp);
-	    pushDeletep(pinVarp);
 	    pushDeletep(nodep);
-
 	}
     }
 
     // Save some time
-    virtual void visit(AstNodeMath*, AstNUser*) {}
+    virtual void visit(AstNodeMath*) {}
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 public:
     // CONSTUCTORS
-    explicit InstDeVisitor(AstNode* nodep) {
+    explicit InstDeVisitor(AstNetlist* nodep) {
 	m_cellRangep=NULL;
 	m_instNum=0;
 	m_instLsb=0;
@@ -390,8 +480,8 @@ private:
     static AstNode* extendOrSel(FileLine* fl, AstNode* rhsp, AstNode* cmpWidthp) {
 	if (cmpWidthp->width() > rhsp->width()) {
 	    rhsp = (rhsp->isSigned()
-		    ? (new AstExtendS(fl, rhsp))->castNode()
-		    : (new AstExtend (fl, rhsp))->castNode());
+		    ? static_cast<AstNode*>(new AstExtendS(fl, rhsp))
+		    : static_cast<AstNode*>(new AstExtend (fl, rhsp)));
 	    rhsp->dtypeFrom(cmpWidthp);  // Need proper widthMin, which may differ from AstSel created above
 	} else if (cmpWidthp->width() < rhsp->width()) {
 	    rhsp = new AstSel (fl, rhsp, 0, cmpWidthp->width());

@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -128,6 +128,10 @@ private:
 		    varp->user4(usedLetter[static_cast<int>(ch)]*256 + ch);
 		    usedLetter[static_cast<int>(ch)]++;
 		}
+	    } else if (AstParamTypeDType* typep = stmtp->castParamTypeDType()) {
+	        char ch = 'T';
+	        typep->user4(usedLetter[static_cast<int>(ch)]*256 + ch);
+	        usedLetter[static_cast<int>(ch)]++;
 	    }
 	}
     }
@@ -172,14 +176,14 @@ private:
 	    if (AstVar* varp = stmtp->castVar()) {
 		if (varp->isIO() || varp->isGParam() || varp->isIfaceRef()) {
 		    // Cloning saved a pointer to the new node for us, so just follow that link.
-		    AstVar* oldvarp = varp->clonep()->castVar();
+		    AstVar* oldvarp = varp->clonep();
 		    //UINFO(8,"Clone list 0x"<<hex<<(uint32_t)oldvarp<<" -> 0x"<<(uint32_t)varp<<endl);
 		    clonemapp->insert(make_pair(oldvarp, varp));
 		}
 	    }
 	    else if (AstParamTypeDType* ptp = stmtp->castParamTypeDType()) {
 		if (ptp->isGParam()) {
-		    AstParamTypeDType* oldptp = ptp->clonep()->castParamTypeDType();
+		    AstParamTypeDType* oldptp = ptp->clonep();
 		    clonemapp->insert(make_pair(oldptp, ptp));
 		}
 	    }
@@ -200,7 +204,7 @@ private:
 		pinp->modPTypep(cloneiter->second->castParamTypeDType());
 	    }
 	    else {
-		pinp->v3fatalSrc("Not linked?\n");
+		pinp->v3fatalSrc("Not linked?");
 	    }
 	}
     }
@@ -234,11 +238,11 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNetlist* nodep, AstNUser*) {
+    virtual void visit(AstNetlist* nodep) {
 	// Modules must be done in top-down-order
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	if (nodep->dead()) {
 	    UINFO(4," MOD-dead.  "<<nodep<<endl);  // Marked by LinkDot
 	} else if (nodep->level() <= 2  // Haven't added top yet, so level 2 is the top
@@ -252,13 +256,13 @@ private:
 	    UINFO(4," MOD-dead?  "<<nodep<<endl);  // Should have been done by now, if not dead
 	}
     }
-    virtual void visit(AstCell* nodep, AstNUser*) {
+    virtual void visit(AstCell* nodep) {
 	// Must do ifaces first, so push to list and do in proper order
 	m_cellps.push_back(nodep);
     }
 
     // Make sure all parameters are constantified
-    virtual void visit(AstVar* nodep, AstNUser*) {
+    virtual void visit(AstVar* nodep) {
 	if (!nodep->user5SetOnce()) {  // Process once
 	    nodep->iterateChildren(*this);
 	    if (nodep->isParam()) {
@@ -276,14 +280,66 @@ private:
 	}
     }
     // Make sure varrefs cause vars to constify before things above
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	if (nodep->varp()) nodep->varp()->iterate(*this);
     }
-    virtual void visit(AstVarXRef* nodep, AstNUser*) {
+    bool ifaceParamReplace(AstVarXRef* nodep, AstNode* candp) {
+	for (; candp; candp = candp->nextp()) {
+	    if (nodep->name() == candp->name()) {
+		if (AstVar* varp = candp->castVar()) {
+		    UINFO(9,"Found interface parameter: "<<varp<<endl);
+		    nodep->varp(varp);
+		    return true;
+		} else if (AstPin* pinp = candp->castPin()) {
+		    UINFO(9,"Found interface parameter: "<<pinp<<endl);
+		    if (!pinp->exprp()) pinp->v3fatalSrc("Interface parameter pin missing expression");
+		    nodep->replaceWith(pinp->exprp()->cloneTree(false)); VL_DANGLING(nodep);
+		    return true;
+		}
+	    }
+	}
+	return false;
+    }
+    virtual void visit(AstVarXRef* nodep) {
+	// Check to see if the scope is just an interface because interfaces are special
+	string dotted = nodep->dotted();
+	if (!dotted.empty() && nodep->varp() && nodep->varp()->isParam()) {
+	    AstNode* backp = nodep;
+	    while ((backp = backp->backp())) {
+		if (backp->castNodeModule()) {
+		    UINFO(9,"Hit module boundary, done looking for interface"<<endl);
+		    break;
+		}
+		if (backp->castVar()
+		    && backp->castVar()->isIfaceRef()
+		    && backp->castVar()->childDTypep()
+		    && backp->castVar()->childDTypep()->castIfaceRefDType()) {
+		    AstIfaceRefDType* ifacerefp = backp->castVar()->childDTypep()->castIfaceRefDType();
+		    // Interfaces passed in on the port map have ifaces
+		    if (AstIface* ifacep = ifacerefp->ifacep()) {
+			if (dotted == backp->name()) {
+			    UINFO(9,"Iface matching scope:  "<<ifacep<<endl);
+			    if (ifaceParamReplace(nodep, ifacep->stmtsp())) {
+				return;
+			    }
+			}
+		    }
+		    // Interfaces declared in this module have cells
+		    else if (AstCell* cellp = ifacerefp->cellp()) {
+			if (dotted == cellp->name()) {
+			    UINFO(9,"Iface matching scope:  "<<cellp<<endl);
+			    if (ifaceParamReplace(nodep, cellp->paramsp())) {
+				return;
+			    }
+			}
+		    }
+		}
+	    }
+	}
 	nodep->varp(NULL);  // Needs relink, as may remove pointed-to var
     }
 
-    virtual void visit(AstUnlinkedRef* nodep, AstNUser*) {
+    virtual void visit(AstUnlinkedRef* nodep) {
 	AstVarXRef* varxrefp = nodep->op1p()->castVarXRef();
 	AstNodeFTaskRef* taskrefp = nodep->op1p()->castNodeFTaskRef();
 	if (varxrefp) {
@@ -304,7 +360,7 @@ private:
 	nodep->replaceWith(nodep->op1p()->unlinkFrBack());
 	pushDeletep(nodep); VL_DANGLING(nodep);
     }
-    virtual void visit(AstCellArrayRef* nodep, AstNUser*) {
+    virtual void visit(AstCellArrayRef* nodep) {
 	V3Const::constifyParamsEdit(nodep->selp());
 	if (AstConst* constp = nodep->selp()->castConst()) {
 	    string index = AstNode::encodeNumber(constp->toSInt());
@@ -322,7 +378,7 @@ private:
     }
 
     // Generate Statements
-    virtual void visit(AstGenerate* nodep, AstNUser*) {
+    virtual void visit(AstGenerate* nodep) {
 	if (debug()>=9) nodep->dumpTree(cout,"-genin: ");
 	nodep->iterateChildren(*this);
 	// After expanding the generate, all statements under it can be moved
@@ -336,7 +392,7 @@ private:
 	}
 	nodep->deleteTree(); VL_DANGLING(nodep);
     }
-    virtual void visit(AstGenIf* nodep, AstNUser*) {
+    virtual void visit(AstGenIf* nodep) {
 	UINFO(9,"  GENIF "<<nodep<<endl);
 	nodep->condp()->iterateAndNext(*this);
 	// We suppress errors when widthing params since short-circuiting in
@@ -366,7 +422,7 @@ private:
     //! @todo Unlike generated IF, we don't have to worry about short-circuiting the conditional
     //!       expression, since this is currently restricted to simple comparisons. If we ever do
     //!       move to more generic constant expressions, such code will be needed here.
-    virtual void visit(AstBegin* nodep, AstNUser*) {
+    virtual void visit(AstBegin* nodep) {
 	if (nodep->genforp()) {
 	    AstGenFor* forp = nodep->genforp()->castGenFor();
 	    if (!forp) nodep->v3fatalSrc("Non-GENFOR under generate-for BEGIN");
@@ -394,10 +450,10 @@ private:
 	    nodep->iterateChildren(*this);
 	}
     }
-    virtual void visit(AstGenFor* nodep, AstNUser*) {
+    virtual void visit(AstGenFor* nodep) {
 	nodep->v3fatalSrc("GENFOR should have been wrapped in BEGIN");
     }
-    virtual void visit(AstGenCase* nodep, AstNUser*) {
+    virtual void visit(AstGenCase* nodep) {
 	UINFO(9,"  GENCASE "<<nodep<<endl);
 	AstNode* keepp = NULL;
 	nodep->exprp()->iterateAndNext(*this);
@@ -447,7 +503,7 @@ private:
     }
 
     // Default: Just iterate
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 
@@ -489,6 +545,12 @@ void ParamVisitor::visitCell(AstCell* nodep) {
 	    if (AstVar* modvarp = pinp->modVarp()) {
 		if (!modvarp->isGParam()) {
 		    pinp->v3error("Attempted parameter setting of non-parameter: Param "<<pinp->prettyName()<<" of "<<nodep->prettyName());
+		} else if (pinp->exprp()->castInitArray()
+			   && modvarp->subDTypep()->castUnpackArrayDType()) {
+		    // Array assigned to array
+		    AstNode* exprp = pinp->exprp();
+		    longname += "_" + paramSmallName(nodep->modp(),modvarp)+paramValueNumber(exprp);
+		    any_overrides = true;
 		} else {
 		    AstConst* exprp = pinp->exprp()->castConst();
 		    AstConst* origp = modvarp->valuep()->castConst();
@@ -537,7 +599,7 @@ void ParamVisitor::visitCell(AstCell* nodep) {
 	    AstVar* modvarp = pinp->modVarp();
 	    if (modvarp->isIfaceRef()) {
 		AstIfaceRefDType* portIrefp = modvarp->subDTypep()->castIfaceRefDType();
-		if (!portIrefp) {
+		if (!portIrefp && modvarp->subDTypep()->castUnpackArrayDType()) {
 		    portIrefp = modvarp->subDTypep()->castUnpackArrayDType()->subDTypep()->castIfaceRefDType();
 		}
 
@@ -570,7 +632,7 @@ void ParamVisitor::visitCell(AstCell* nodep) {
 		UINFO(9,"     portIfaceRef "<<portIrefp<<endl);
 
 		if (!portIrefp) {
-		    pinp->v3error("Interface port '"<<modvarp->prettyName()<<"' is not an interface" << modvarp);
+		    pinp->v3error("Interface port '"<<modvarp->prettyName()<<"' is not an interface " << modvarp);
 		} else if (!pinIrefp) {
 		    pinp->v3error("Interface port '"<<modvarp->prettyName()<<"' is not connected to interface/modport pin expression");
 		} else {
@@ -633,7 +695,7 @@ void ParamVisitor::visitCell(AstCell* nodep) {
 		for (IfaceRefRefs::iterator it=ifaceRefRefs.begin(); it!=ifaceRefRefs.end(); ++it) {
 		    AstIfaceRefDType* portIrefp = it->first;
 		    AstIfaceRefDType* pinIrefp = it->second;
-		    AstIfaceRefDType* cloneIrefp = portIrefp->clonep()->castIfaceRefDType();
+		    AstIfaceRefDType* cloneIrefp = portIrefp->clonep();
 		    UINFO(8,"     IfaceOld "<<portIrefp<<endl);
 		    UINFO(8,"     IfaceTo  "<<pinIrefp<<endl);
 		    if (!cloneIrefp) portIrefp->v3fatalSrc("parameter clone didn't hit AstIfaceRefDType");
@@ -647,11 +709,11 @@ void ParamVisitor::visitCell(AstCell* nodep) {
 		for (AstPin* pinp = nodep->paramsp(); pinp; pinp=pinp->nextp()->castPin()) {
 		    if (pinp->exprp()) {
 			if (AstVar* modvarp = pinp->modVarp()) {
-			    AstConst* constp = pinp->exprp()->castConst();
+			    AstNode* newp = pinp->exprp();  // Const or InitArray
 			    // Remove any existing parameter
 			    if (modvarp->valuep()) modvarp->valuep()->unlinkFrBack()->deleteTree();
 			    // Set this parameter to value requested by cell
-			    modvarp->valuep(constp->cloneTree(false));
+			    modvarp->valuep(newp->cloneTree(false));
 			}
 			else if (AstParamTypeDType* modptp = pinp->modPTypep()) {
 			    AstNodeDType* dtypep = pinp->exprp()->castNodeDType();

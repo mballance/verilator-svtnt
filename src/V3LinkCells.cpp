@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -119,7 +119,7 @@ private:
 	if (!nodep->user1p()) {
 	    nodep->user1p(new LinkCellsVertex(&m_graph, nodep));
 	}
-	return (nodep->user1p()->castGraphVertex());
+	return (nodep->user1u().toGraphVertex());
     }
 
     AstNodeModule* findModuleSym(const string& modName) {
@@ -151,7 +151,7 @@ private:
     }
 
     // VISITs
-    virtual void visit(AstNetlist* nodep, AstNUser*) {
+    virtual void visit(AstNetlist* nodep) {
 	AstNode::user1ClearTree();
 	readModNames();
 	nodep->iterateChildren(*this);
@@ -182,7 +182,7 @@ private:
 	    v3error("Specified --top-module '"<<v3Global.opt.topModule()<<"' was not found in design.");
 	}
     }
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	// Module: Pick up modnames, so we can resolve cells later
 	m_modp = nodep;
 	UINFO(2,"Link Module: "<<nodep<<endl);
@@ -217,7 +217,7 @@ private:
 	m_modp = NULL;
     }
 
-    virtual void visit(AstIfaceRefDType* nodep, AstNUser*) {
+    virtual void visit(AstIfaceRefDType* nodep) {
 	// Cell: Resolve its filename.  If necessary, parse it.
 	UINFO(4,"Link IfaceRef: "<<nodep<<endl);
 	// Use findIdUpward instead of findIdFlat; it doesn't matter for now
@@ -236,14 +236,14 @@ private:
 	// Note cannot do modport resolution here; modports are allowed underneath generates
     }
 
-    virtual void visit(AstPackageImport* nodep, AstNUser*) {
+    virtual void visit(AstPackageImport* nodep) {
 	// Package Import: We need to do the package before the use of a package
 	nodep->iterateChildren(*this);
 	if (!nodep->packagep()) nodep->v3fatalSrc("Unlinked package");  // Parser should set packagep
 	new V3GraphEdge(&m_graph, vertex(m_modp), vertex(nodep->packagep()), 1, false);
     }
 
-    virtual void visit(AstBind* nodep, AstNUser*) {
+    virtual void visit(AstBind* nodep) {
 	// Bind: Has cells underneath that need to be put into the new module, and cells which need resolution
 	// TODO this doesn't allow bind to dotted hier names, that would require
 	// this move to post param, which would mean we do not auto-read modules
@@ -264,7 +264,7 @@ private:
 	pushDeletep(nodep->unlinkFrBack());
     }
 
-    virtual void visit(AstCell* nodep, AstNUser*) {
+    virtual void visit(AstCell* nodep) {
 	// Cell: Resolve its filename.  If necessary, parse it.
 	if (nodep->user1SetOnce()) return;  // AstBind and AstNodeModule may call a cell twice
 	if (!nodep->modp()) {
@@ -335,7 +335,8 @@ private:
 			    UINFO(9,"    need .* PORT  "<<portp<<endl);
 			    // Create any not already connected
 			    AstPin* newp = new AstPin(nodep->fileline(),0,portp->name(),
-						      new AstVarRef(nodep->fileline(),portp->name(),false));
+						      new AstParseRef(nodep->fileline(),
+								      AstParseRefExp::PX_TEXT, portp->name(), NULL, NULL));
 			    newp->svImplicit(true);
 			    nodep->addPinsp(newp);
 			} else {  // warn on the CELL that needs it, not the port
@@ -382,8 +383,8 @@ private:
 
     // Accelerate the recursion
     // Must do statements to support Generates, math though...
-    virtual void visit(AstNodeMath* nodep, AstNUser*) {}
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNodeMath* nodep) {}
+    virtual void visit(AstNode* nodep) {
 	// Default: Just iterate
 	nodep->iterateChildren(*this);
     }

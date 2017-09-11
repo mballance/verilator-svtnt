@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2009-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2009-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -47,7 +47,7 @@ private:
     // METHODS
     static VSymEnt* getTable(AstNode* nodep) {
 	if (!nodep->user4p()) nodep->v3fatalSrc("Current symtable not found");
-	return nodep->user4p()->castSymEnt();
+	return nodep->user4u().toSymEnt();
     }
 
 public:

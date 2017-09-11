@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -163,7 +163,7 @@ class EmitCSyms : EmitCBaseVisitor {
     }
 
     // VISITORS
-    virtual void visit(AstNetlist* nodep, AstNUser*) {
+    virtual void visit(AstNetlist* nodep) {
 	// Collect list of scopes
 	nodep->iterateChildren(*this);
 	varsExpand();
@@ -180,18 +180,18 @@ class EmitCSyms : EmitCBaseVisitor {
 	    emitDpiImp();
 	}
     }
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	nameCheck(nodep);
 	m_modp = nodep;
 	m_labelNum = 0;
 	nodep->iterateChildren(*this);
 	m_modp = NULL;
     }
-    virtual void visit(AstScope* nodep, AstNUser*) {
+    virtual void visit(AstScope* nodep) {
 	nameCheck(nodep);
 	m_scopes.push_back(make_pair(nodep, m_modp));
     }
-    virtual void visit(AstScopeName* nodep, AstNUser*) {
+    virtual void visit(AstScopeName* nodep) {
 	string name = nodep->scopeSymName();
 	//UINFO(9,"scnameins sp "<<nodep->name()<<" sp "<<nodep->scopePrettySymName()<<" ss "<<name<<endl);
 	if (m_scopeNames.find(name) == m_scopeNames.end()) {
@@ -207,7 +207,7 @@ class EmitCSyms : EmitCBaseVisitor {
 	    }
 	}
     }
-    virtual void visit(AstVar* nodep, AstNUser*) {
+    virtual void visit(AstVar* nodep) {
 	nameCheck(nodep);
 	nodep->iterateChildren(*this);
 	if (nodep->isSigUserRdPublic()
@@ -215,17 +215,17 @@ class EmitCSyms : EmitCBaseVisitor {
 	    m_modVars.push_back(make_pair(m_modp, nodep));
 	}
     }
-    virtual void visit(AstCoverDecl* nodep, AstNUser*) {
+    virtual void visit(AstCoverDecl* nodep) {
 	// Assign numbers to all bins, so we know how big of an array to use
 	if (!nodep->dataDeclNullp()) {  // else duplicate we don't need code for
 	    nodep->binNum(m_coverBins++);
 	}
     }
-    virtual void visit(AstJumpLabel* nodep, AstNUser*) {
+    virtual void visit(AstJumpLabel* nodep) {
 	nodep->labelNum(++m_labelNum);
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstCFunc* nodep, AstNUser*) {
+    virtual void visit(AstCFunc* nodep) {
 	nameCheck(nodep);
 	if (nodep->dpiImport() || nodep->dpiExportWrapper()) {
 	    m_dpis.push_back(nodep);
@@ -235,10 +235,9 @@ class EmitCSyms : EmitCBaseVisitor {
 	m_funcp = NULL;
     }
     // NOPs
-    virtual void visit(AstConst*, AstNUser*) {}
+    virtual void visit(AstConst*) {}
     // Default
-    virtual void visit(AstNode* nodep, AstNUser*) {
-	nameCheck(nodep);
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
     //---------------------------------------
@@ -270,12 +269,7 @@ void EmitCSyms::emitSymHdr() {
     puts("#define _"+symClassName()+"_H_\n");
     puts("\n");
 
-    if (optSystemPerl()) puts("#include \"systemperl.h\"\n");
-    else if (optSystemC()) puts("#include \"systemc.h\"\n");
-
-    if (optSystemPerl() || optSystemC()) {
-	puts("#include \"verilated_sc.h\"\n");
-    }
+    ofp()->putsIntTopInclude();
     if (v3Global.needHeavy()) {
 	puts("#include \"verilated_heavy.h\"\n");
     } else {
@@ -308,14 +302,10 @@ void EmitCSyms::emitSymHdr() {
     ofp()->putsPrivate(false);  // public:
 
     puts("\n// LOCAL STATE\n");
-    ofp()->putAlign(V3OutFile::AL_AUTO, sizeof(vluint64_t));
     puts("const char* __Vm_namep;\n");	// Must be before subcells, as constructor order needed before _vlCoverInsert.
-    ofp()->putAlign(V3OutFile::AL_AUTO, sizeof(bool));
     puts("bool\t__Vm_activity;\t\t///< Used by trace routines to determine change occurred\n");
-    ofp()->putAlign(V3OutFile::AL_AUTO, sizeof(bool));
     puts("bool\t__Vm_didInit;\n");
 
-    ofp()->putAlign(V3OutFile::AL_AUTO, sizeof(vluint64_t));
     puts("\n// SUBCELL STATE\n");
     for (vector<ScopeModPair>::iterator it = m_scopes.begin(); it != m_scopes.end(); ++it) {
 	AstScope* scopep = it->first;  AstNodeModule* modp = it->second;
@@ -331,7 +321,6 @@ void EmitCSyms::emitSymHdr() {
 
     puts("\n// COVERAGE\n");
     if (m_coverBins) {
-	ofp()->putAlign(V3OutFile::AL_AUTO, sizeof(uint32_t));
 	puts("uint32_t\t__Vcoverage["); puts(cvtToStr(m_coverBins)); puts("];\n");
     }
 

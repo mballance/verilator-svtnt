@@ -82,8 +82,9 @@ our $Raise_Weight_Max = 50;
  'VADD'=>	{weight=>1&&10, width=>0, 	    sc=>1, terminal=>0, v=>'(%1 + %2)', },
  'VSUB'=>	{weight=>1&&10, width=>0, 	    sc=>1, terminal=>0, v=>'(%1 - %2)', },
  'VMUL'=>	{weight=>1&&15,width=>0, 	    sc=>1, terminal=>0, v=>'(%1 * %2)', },  # High % as rarely applyable
- 'VDIV'=>	{weight=>1&&8, width=>0,	    sc=>1, terminal=>0, v=>'((%2)==%xw\'h0 ? %xw\'%xsh0:(%1 / %2))', },
- 'VMODDIV'=>	{weight=>1&&8, width=>0,	    sc=>1, terminal=>0, v=>'((%2)==%xw\'h0 ? %xw\'%xsh0:(%1 %% %2))', },
+ # Unspecified behavior with == (a-signed / b) -- see t_math_signed5.v test
+ 'VDIV'=>	{weight=>1&&8, width=>0, signed=>0, sc=>1, terminal=>0, v=>'((%2)==%xw\'h0 ? %xw\'%xsh0:(%1 / %2))', },
+ 'VMODDIV'=>	{weight=>1&&8, width=>0, signed=>0, sc=>1, terminal=>0, v=>'((%2)==%xw\'h0 ? %xw\'%xsh0:(%1 %% %2))', },
  #'VPOW'=>	{weight=>2&&0,width=>-64, 	    sc=>0, terminal=>0, v=>'(%1 ** %2)', },
  'VSHIFTL'=>	{weight=>1&&8, width=>0, signed=>0, sc=>0, terminal=>0, v=>'(%1 << %2)', },
  'VSHIFTLS'=>	{weight=>1&&8, width=>0, signed=>1, sc=>0, terminal=>0, v=>'(%1 <<< %2)', },
@@ -196,11 +197,10 @@ foreach my $op (keys %ops2) {
 
 
 my  $opt_seed=5;
-our $Opt_NumOps = 300;
+our $Opt_NumOps = 30;
 our $Opt_Depth = 4;
 our $Opt_Signed = 1;
 our $Opt_Raise;
-our $Opt_Sc;
 our $Opt_BlockStmts = 2;
 our $Signed_Pct = 60;
 $Debug = 0;
@@ -213,7 +213,6 @@ if (! GetOptions (
 		  "raise=i"	=> \$Opt_Raise,
 		  "seed=i"	=> \$opt_seed,
 		  "signed!"	=> \$Opt_Signed,
-		  "sc!"		=> \$Opt_Sc,
 		  "<>"		=> \&parameter,
 		  )) {
     usage();
@@ -229,8 +228,7 @@ srand($opt_seed);
 init();
 selftest();
 gentest();
-write_output_sc("vgen.cpp") if $Opt_Sc;
-write_output_v("vgen.v") if !$Opt_Sc;
+write_output_v("vgen.v");
 
 #----------------------------------------------------------------------
 
@@ -261,8 +259,6 @@ sub init {
 	gen_v($opref);
 	gen_pl($opref);
 	gen_rnd($opref);
-	$opref->{weight} = 0 if $Opt_Sc && !$opref->{sc};
-	$opref->{weight} = 2 if $Opt_Sc && $op eq 'VCONST';
     }
     raise();
 }
@@ -344,12 +340,6 @@ sub rnd_width {
 	     || (($v<50) && 95)
 	     || (($v<55) && 96)
 	     || (rnd(128)+1));
-    if ($Opt_Sc) {
-	$n = (0
-	      #|| (($v<50) && 32)
-	      || (32));
-	#(!$max) or die "%Error: --sc max must 32/64/96,";
-    }
     if ($max && $n>=$max) { $n = rnd($max-1)+1; }
     return $n;
 }
@@ -377,17 +367,15 @@ sub rnd_const {
     my $val = Bit::Vector->new($width);
     if ($v<25) {	# zero
     } elsif ($v<50) {	# ones
-	$val->Word_Store(0,~0);
-	$val->Word_Store(1,~0) if $width>32;
-	$val->Word_Store(2,~0) if $width>64;
-	$val->Word_Store(3,~0) if $width>96;
+	for (my $w=0; $w<$val->Word_Size; ++$w) {
+	    $val->Word_Store(0,~0);
+	}
     } elsif ($v<60) {	# one
 	$val->Word_Store(0,1);
     } else { #random
-	$val->Word_Store(0,rnd_int());
-	$val->Word_Store(1,rnd_int()) if $width>32;
-	$val->Word_Store(2,rnd_int()) if $width>64;
-	$val->Word_Store(3,rnd_int()) if $width>96;
+	for (my $w=0; $w<$val->Word_Size; ++$w) {
+	    $val->Word_Store($w,rnd_int());
+	}
     }
     $treeref->{val} = $val;
 }
@@ -546,87 +534,6 @@ sub write_output_v {
     print $fh "\n";
     print $fh "   parameter [31:0] CYCLES /*verilator public*/ = $cycles;\n";
     print $fh "endmodule\n";
-
-    $fh->close();
-}
-
-sub write_output_sc {
-    my $filename = shift;
-
-    my $fh = IO::File->new($filename, "w") or die("%Error: $! $filename,\n");
-
-    print $fh "// -*- SystemC -*-\n";
-    print $fh "// Created by: $Rerun_Args\n";
-
-    # Classes
-    foreach my $block (@Blocks) {
-	print $fh "class $block->{name};\n";
-    }
-    print $fh "\n";
-
-    # Headers
-    print $fh "//".('='x60)."\n";
-    print $fh "SC_MODULE(Vgen) {\n";
-    print $fh "public:\n";
-    print $fh "  sc_in_clk clk;\n";
-    print $fh "  sc_in<bool> check;\n";
-    print $fh "  static const int CYCLES /*verilator public*/ = ",$#Blocks+3,";\n";
-    print $fh "\n";
-    foreach my $var (sort (keys %Vars)) {
-	print $fh "",decl_text ($var,"sc_signal"),"\n";
-    }
-    print $fh "\n";
-    foreach my $block (@Blocks) {
-	print $fh "  $block->{name}*  ".lc($block->{name}).";\n";
-    }
-    print $fh "  SC_CTOR(Vgen);\n";
-    print $fh "};\n\n";
-
-    # Sub Interface
-    print $fh "//".('='x60)."\n";
-    foreach my $block (@Blocks) {
-	print $fh "SC_MODULE($block->{name}) {\n";
-	print $fh "public:\n";
-	print $fh "  sc_in_clk clk;\n";
-	print $fh "  sc_in<bool> check;\n";
-	foreach my $var (@{$block->{inputs}}) {
-	    print $fh "",decl_text ($var,"sc_in"),"\n";
-	}
-	foreach my $var (@{$block->{outputs}}) {
-	    print $fh "",decl_text ($var,"sc_out"),"\n";
-	}
-	print $fh "  SC_CTOR($block->{name});\n";
-	print $fh "  void clkPosedge();\n";
-	print $fh "};\n\n";
-    }
-
-    # Implementation
-    print $fh "//".('='x60)."\n";
-    print $fh "SP_CTOR_IMP(Vgen) : clk(\"clk\"), check(\"check\") {\n";
-    foreach my $block (@Blocks) {
-	print $fh "  //\n";
-	print $fh "  SP_CELL (".lc($block->{name}).", $block->{name});\n";
-	print $fh "   SP_PIN (".lc($block->{name}).", clk, clk);\n";
-	print $fh "   SP_PIN (".lc($block->{name}).", check, check);\n";
-	foreach my $var (@{$block->{inputs}}, @{$block->{outputs}}, ) {
-	    print $fh "   SP_PIN (".lc($block->{name}).", $var, $var);\n";
-	}
-    }
-    print $fh "}\n\n";
-
-    # Sub Implementations
-    print $fh "//".('='x60)."\n";
-    foreach my $block (@Blocks) {
-	print $fh "SP_CTOR_IMP($block->{name}) {\n";
-	print $fh "  SC_METHOD(clkPosedge);\n";
-	print $fh "  sensitive << clk.pos();\n";
-	print $fh "}\n\n";
-
-	print $fh "void $block->{name}::clkPosedge() {\n";
-	print $fh @{$block->{preass}};
-	print $fh @{$block->{body}};
-	print $fh "}\n\n";
-    }
 
     $fh->close();
 }
@@ -825,7 +732,7 @@ sub gen_rnd {
 }
 
 sub stop_text {
-    return $Opt_Sc?'USTOP()':'$stop';
+    return '$stop';
 }
 
 sub decl_text {
@@ -833,23 +740,14 @@ sub decl_text {
     my $decl_with = shift;
 
     my $varref = $Vars{$var};
-    if ($Opt_Sc) {
-	(!$varref->{signed}) or die "%Error: No signed SystemC yet\n";
-	my $type = ((   ($varref->{val}->Size == 32) && "sc_dt::uint32")
-		    || (($varref->{val}->Size == 64) && "sc_dt::uint64"));
-	$type or die "%Error: Unknown Size ".$varref->{val}->Size,",";
-	return sprintf "  %s<%s> %s; //=%s"
-	    , $decl_with, $type, $var, $varref->{val}->to_Hex;
-    } else {
-	return sprintf "   reg %s [%3d:%3d] %s %s; //=%d'h%s"
-	    , ($varref->{signed}?"signed":"      ")
-	    , ($varref->{val}->Size)-1+$VarAttrs{$var}{lsb},
-	    , $VarAttrs{$var}{lsb}
-	    , $var
-	    , (rnd(100)<30 ? "/*verilator public*/":(" "x length("/*verilator public*/")))
-	    , $varref->{val}->Size
-	    , lc $varref->{val}->to_Hex;
-    }
+    return sprintf ("   reg %s [%3d:%3d] %s %s; //=%d'h%s"
+		    , ($varref->{signed}?"signed":"      ")
+		    , ($varref->{val}->Size)-1+$VarAttrs{$var}{lsb},
+		    , $VarAttrs{$var}{lsb}
+		    , $var
+		    , (rnd(100)<30 ? "/*verilator public*/":(" "x length("/*verilator public*/")))
+		    , $varref->{val}->Size
+		    , lc $varref->{val}->to_Hex);
 }
 
 #######################################################################
@@ -1058,15 +956,9 @@ sub val_to_text {
     my $treeref = shift;
     my $val = lc $treeref->{val}->to_Hex();
     $val = "0" if $treeref->{val}->is_empty;
-    if ($Opt_Sc) {
-	return ("0x".$val
-		.(($treeref->{width}>32)?"ULL":"UL")
-		);
-    } else {
-	return ($treeref->{width}
-		.($treeref->{signed}?"'sh":"'h")
-		.$val);
-    }
+    return ($treeref->{width}
+	    .($treeref->{signed}?"'sh":"'h")
+	    .$val);
 }
 
 sub tree_dump {
@@ -1120,10 +1012,6 @@ Number of operations to create.
 
 Pick the specified number of random opcodes, and raise their frequency.
 
-=item --sc
-
-Output SystemC code (Experimental).
-
 =item --seed
 
 Seed for the random number generator.  Defaults to 5, 0=randomize.
@@ -1136,7 +1024,7 @@ Include some signed arithmetic in the generated code.  Experimental.
 
 =head1 DISTRIBUTION
 
-Copyright 2001-2016 by Wilson Snyder.  Verilator is free software; you can
+Copyright 2001-2017 by Wilson Snyder.  Verilator is free software; you can
 redistribute it and/or modify it under the terms of either the GNU Lesser
 General Public License Version 3 or the Perl Artistic License Version 2.0.
 
@@ -1155,6 +1043,6 @@ Wilson Snyder <wsnyder@wsnyder.org>
 
 ######################################################################
 ### Local Variables:
-### compile-command: "./vgen.pl -sc --depth=10 --blockstmts=10"
+### compile-command: "./vgen.pl --depth=10 --blockstmts=10"
 ### compile-command: "make "
 ### End:

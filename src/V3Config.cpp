@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2010-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2010-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -104,7 +104,7 @@ class V3ConfigIgnores {
 public:
     inline static V3ConfigIgnores& singleton() { return s_singleton; }
 
-    void addIgnore(V3ErrorCode code, string wildname, int lineno, bool on) {
+    void addIgnore(V3ErrorCode code, const string& wildname, int lineno, bool on) {
 	// Insert
 	IgnLines* linesp = findWilds(wildname);
 	UINFO(9,"config addIgnore "<<wildname<<":"<<lineno<<", "<<code<<", "<<on<<endl);

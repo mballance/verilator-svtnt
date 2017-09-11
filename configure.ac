@@ -1,12 +1,12 @@
 # DESCRIPTION: Process this file with autoconf to produce a configure script.
 #
-# Copyright 2003-2016 by Wilson Snyder. Verilator is free software; you can
+# Copyright 2003-2017 by Wilson Snyder. Verilator is free software; you can
 # redistribute it and/or modify it under the terms of either the GNU Lesser
 # General Public License Version 3 or the Perl Artistic License Version 2.0.
 
 #AC_INIT([Verilator],[#.### YYYY-MM-DD])
 #AC_INIT([Verilator],[#.### devel])
-AC_INIT([Verilator],[3.885 devel])
+AC_INIT([Verilator],[3.910 2017-09-07])
 # When releasing, also update header of Changes file
 
 AC_CONFIG_HEADER(src/config_build.h)
@@ -15,7 +15,7 @@ AC_CONFIG_FILES(Makefile src/Makefile src/Makefile_obj include/verilated.mk incl
 AC_MSG_RESULT([configuring for $PACKAGE_STRING])
 
 # Special Substitutions - CFG_WITH_DEFENV
-AC_MSG_CHECKING(whether to disable hardcoded paths)
+AC_MSG_CHECKING(whether to use hardcoded paths)
 AC_ARG_ENABLE([defenv],
               [AS_HELP_STRING([--disable-defenv],
                               [disable using some hardcoded data paths extracted from some default environment variables (the default is to use hardcoded paths)])],
@@ -120,6 +120,18 @@ AC_DEFUN([_MY_CXX_CHECK_OPT],
 	    fi
 	  fi],
 	 [_my_result=no])
+    # GCC is annoying, trying to be helpful, it postpones unknown -Wno-
+    # options if there's no error We want to see them regardless, so try
+    # forcing an error and see if we get a gcc warning
+    AC_COMPILE_IFELSE(
+         [AC_LANG_PROGRAM([[an_error "intentional-error-for-test.h"
+	                  ]],[])],
+         [], # Ignore ok exit
+         [if test -s conftest.err; then
+            if grep -e "$2" conftest.err >/dev/null; then
+              _my_result=no
+            fi
+          fi])
     AC_MSG_RESULT($_my_result)
     if test "$_my_result" = "yes" ; then
        $1="$$1 $2"
@@ -128,34 +140,35 @@ AC_DEFUN([_MY_CXX_CHECK_OPT],
    ])# _MY_CXX_CHECK_OPT
 
 # Flags for compiling Verilator internals including parser
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_SRC,-Wno-unused-parameter)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_SRC,-Wno-char-subscripts)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_SRC,-Wno-undefined-bool-conversion)
 _MY_CXX_CHECK_OPT(CFG_CXXFLAGS_SRC,-Qunused-arguments)
+_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_SRC,-faligned-new)
 _MY_CXX_CHECK_OPT(CFG_CXXFLAGS_SRC,-fno-delete-null-pointer-checks)
+_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_SRC,-Wno-unused-parameter)
+_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_SRC,-Wno-undefined-bool-conversion)
 AC_SUBST(CFG_CXXFLAGS_SRC)
 
-# Flags for compiling Verilator parser
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_PARSER,-Wno-unused)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_PARSER,-Wno-parentheses-equality)
+# Flags for compiling Verilator parser (in addition to above CFG_CXXFLAGS_SRC)
+_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_PARSER,-Wno-char-subscripts)
 _MY_CXX_CHECK_OPT(CFG_CXXFLAGS_PARSER,-Wno-null-conversion)
+_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_PARSER,-Wno-parentheses-equality)
+_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_PARSER,-Wno-unused)
 AC_SUBST(CFG_CXXFLAGS_PARSER)
 
 # Flags for Verilated makefile
 # For example, -Wno-div-by-zero isn't in 4.1.2
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-char-subscripts)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-parentheses-equality)
 # Random code often does / 0.  Unfortunately VL_DIV_I(0,0) will warn
 # without this flag, even though there's a conditional to prevent the divide.
 # We still don't add no-div-by-zero as it throws message to stdout, though doesn't die.
 #_MY_CXX_CHECK_OPT(-Wno-div-by-zero)
+_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-faligned-new)
+_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-fbracket-depth=4096)
+_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Qunused-arguments)
+_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-parentheses-equality)
 _MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-sign-compare)
 _MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-uninitialized)
 _MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-unused-but-set-variable)
 _MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-unused-parameter)
 _MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-unused-variable)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-fbracket-depth=4096)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Qunused-arguments)
 AC_SUBST(CFG_CXXFLAGS_NO_UNUSED)
 
 # Checks for library functions.

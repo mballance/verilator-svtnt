@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -154,7 +154,7 @@ private:
 	return newp;
     }
 
-    AstNode* newSubLsbOf(AstNode* underp, VNumRange fromRange) {
+    AstNode* newSubLsbOf(AstNode* underp, const VNumRange& fromRange) {
 	// Account for a variable's LSB in bit selections
 	// Will likely become SUB(underp, lsb_of_signal)
 	// Don't report WIDTH warnings etc here, as may be inside a generate branch that will be deleted
@@ -194,7 +194,7 @@ private:
     // VISITORS
     // If adding new visitors, insure V3Width's visit(TYPE) calls into here
 
-    virtual void visit(AstSelBit* nodep, AstNUser*) {
+    virtual void visit(AstSelBit* nodep) {
 	// Select of a non-width specified part of an array, i.e. "array[2]"
 	// This select style has a lsb and msb (no user specified width)
 	UINFO(6,"SELBIT "<<nodep<<endl);
@@ -223,7 +223,11 @@ private:
 	    // SELBIT(array, index) -> SEL(array, index*width-of-subindex, width-of-subindex)
 	    AstNode* subp = rhsp;
 	    if (fromRange.lo()!=0 || fromRange.hi()<0) {
-		subp = newSubNeg (subp, fromRange.lo());
+		if (fromRange.littleEndian()) {
+		    subp = newSubNeg(fromRange.hi(), subp);
+		} else {
+		    subp = newSubNeg(subp, fromRange.lo());
+		}
 	    }
 	    if (!fromRange.elements() || (adtypep->width() % fromRange.elements())!=0)
 		adtypep->v3fatalSrc("Array extraction with width miscomputed "
@@ -273,7 +277,7 @@ private:
 	}
 	if (!rhsp->backp()) { pushDeletep(rhsp); VL_DANGLING(rhsp); }
     }
-    virtual void visit(AstSelExtract* nodep, AstNUser*) {
+    virtual void visit(AstSelExtract* nodep) {
 	// Select of a range specified part of an array, i.e. "array[2:3]"
 	// SELEXTRACT(from,msb,lsb) -> SEL(from, lsb, 1+msb-lsb)
 	// This select style has a (msb or lsb) and width
@@ -311,11 +315,20 @@ private:
 	    if (!fromRange.elements() || (adtypep->width() % fromRange.elements())!=0)
 		adtypep->v3fatalSrc("Array extraction with width miscomputed "
 				    <<adtypep->width()<<"/"<<fromRange.elements());
+	    if (fromRange.littleEndian()) {
+		// Below code assumes big bit endian; just works out if we swap
+		int x = msb; msb = lsb; lsb = x;
+	    }
+	    if (lsb > msb) {
+		nodep->v3error("["<<msb<<":"<<lsb<<"] Range extract has backward bit ordering, perhaps you wanted ["<<lsb<<":"<<msb<<"]");
+		int x = msb; msb = lsb; lsb = x;
+	    }
 	    int elwidth = adtypep->width() / fromRange.elements();
 	    AstSel* newp = new AstSel (nodep->fileline(),
 				       fromp,
-				       new AstConst(nodep->fileline(),AstConst::Unsized32(),lsb*elwidth),
-				       new AstConst(nodep->fileline(),AstConst::Unsized32(),(msb-lsb+1)*elwidth));
+				       new AstMul(nodep->fileline(), newSubLsbOf(lsbp, fromRange),
+						  new AstConst(nodep->fileline(), AstConst::Unsized32(), elwidth)),
+				       new AstConst(nodep->fileline(), AstConst::Unsized32(), (msb-lsb+1)*elwidth));
 	    newp->declRange(fromRange);
 	    newp->declElWidth(elwidth);
 	    newp->dtypeFrom(sliceDType(adtypep, msb, lsb));
@@ -443,17 +456,17 @@ private:
 	if (!rhsp->backp()) { pushDeletep(rhsp); VL_DANGLING(rhsp); }
 	if (!widthp->backp()) { pushDeletep(widthp); VL_DANGLING(widthp); }
     }
-    virtual void visit(AstSelPlus* nodep, AstNUser*) {
+    virtual void visit(AstSelPlus* nodep) {
 	replaceSelPlusMinus(nodep);
     }
-    virtual void visit(AstSelMinus* nodep, AstNUser*) {
+    virtual void visit(AstSelMinus* nodep) {
 	replaceSelPlusMinus(nodep);
     }
     // If adding new visitors, insure V3Width's visit(TYPE) calls into here
 
     //--------------------
     // Default
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	// See notes above; we never iterate
 	nodep->v3fatalSrc("Shouldn't iterate in V3WidthSel");
     }
@@ -462,7 +475,7 @@ public:
     // CONSTUCTORS
     WidthSelVisitor() {}
     AstNode* mainAcceptEdit(AstNode* nodep) {
-	return nodep->acceptSubtreeReturnEdits(*this);
+	return nodep->iterateSubtreeReturnEdits(*this);
     }
     virtual ~WidthSelVisitor() {}
 };

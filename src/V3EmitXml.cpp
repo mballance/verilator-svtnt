@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2004-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2004-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -81,23 +81,23 @@ class EmitXmlFileVisitor : public AstNVisitor {
     }
 
     // VISITORS
-    virtual void visit(AstNetlist* nodep, AstNUser*) {
+    virtual void visit(AstNetlist* nodep) {
 	puts("<netlist>\n");
 	nodep->iterateChildren(*this);
 	puts("</netlist>\n");
     }
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	outputTag(nodep, "");
 	if (nodep->level()==1 || nodep->level()==2) // ==2 because we don't add wrapper when in XML mode
 	    puts(" topModule=\"1\"");  // IEEE vpiTopModule
 	outputChildrenEnd(nodep, "");
     }
-    virtual void visit(AstCell* nodep, AstNUser*) {
+    virtual void visit(AstCell* nodep) {
 	outputTag(nodep, "instance");	// IEEE: vpiInstance
 	puts(" defName="); putsQuoted(nodep->modName());  // IEEE vpiDefName
 	outputChildrenEnd(nodep, "instance");
     }
-    virtual void visit(AstPin* nodep, AstNUser*) {
+    virtual void visit(AstPin* nodep) {
 	// What we call a pin in verilator is a port in the IEEE spec.
 	outputTag(nodep, "port");	// IEEE: vpiPort
 	if (nodep->modVarp()->isInOnly())
@@ -109,13 +109,13 @@ class EmitXmlFileVisitor : public AstNVisitor {
 	// Children includes vpiHighConn and vpiLowConn; we don't support port bits (yet?)
 	outputChildrenEnd(nodep, "port");
     }
-    virtual void visit(AstAssignW* nodep, AstNUser*) {
+    virtual void visit(AstAssignW* nodep) {
 	outputTag(nodep, "contAssign");	// IEEE: vpiContAssign
 	outputChildrenEnd(nodep, "contAssign");
     }
 
     // Data types
-    virtual void visit(AstBasicDType* nodep, AstNUser*) {
+    virtual void visit(AstBasicDType* nodep) {
 	outputTag(nodep, "basicDType ");
 	if (nodep->isRanged()) {
 	    puts(" left=\""+cvtToStr(nodep->left())+"\"");
@@ -125,7 +125,7 @@ class EmitXmlFileVisitor : public AstNVisitor {
     }
 
     // Default
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	outputTag(nodep, "");
 	outputChildrenEnd(nodep, "");
     }

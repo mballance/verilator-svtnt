@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -88,10 +88,10 @@ private:
 
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstVar*, AstNUser*) {}
-    virtual void visit(AstTypedef*, AstNUser*) {}
-    virtual void visit(AstParamTypeDType*, AstNUser*) {}
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstVar*) {}
+    virtual void visit(AstTypedef*) {}
+    virtual void visit(AstParamTypeDType*) {}
+    virtual void visit(AstNode* nodep) {
 	nodeHashIterate(nodep);
     }
 

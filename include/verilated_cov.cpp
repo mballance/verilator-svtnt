@@ -3,7 +3,7 @@
 //
 // THIS MODULE IS PUBLICLY LICENSED
 //
-// Copyright 2001-2016 by Wilson Snyder.  This program is free software;
+// Copyright 2001-2017 by Wilson Snyder.  This program is free software;
 // you can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License Version 2.0.
 //
@@ -50,7 +50,7 @@ public:  // But only local to this file
     // CONSTRUCTORS
     // Derived classes should call zero() in their constructor
     VerilatedCovImpItem() {
-	for (int i=0; i<MAX_KEYS; i++) {
+	for (int i=0; i<MAX_KEYS; ++i) {
 	    m_keys[i]=KEY_UNDEF;
 	    m_vals[i]=0;
 	}
@@ -72,6 +72,7 @@ private:
     T*	m_countp;	///< Count value
 public:
     // METHODS
+    // cppcheck-suppress truncLongCastReturn
     virtual vluint64_t count() const { return *m_countp; }
     virtual void zero() const { *m_countp = 0; }
     // CONSTRUCTORS
@@ -130,7 +131,7 @@ private:
     string dequote(const string& text) {
 	// Quote any special characters
 	string rtn;
-	for (const char* pos = text.c_str(); *pos; pos++) {
+	for (const char* pos = text.c_str(); *pos; ++pos) {
 	    if (!isprint(*pos) || *pos=='%' || *pos=='"') {
 		char hex[10]; sprintf(hex,"%%%02X",pos[0]);
 		rtn += hex;
@@ -194,7 +195,7 @@ private:
 	return out;
     }
     bool itemMatchesString(VerilatedCovImpItem* itemp, const string& match) {
-	for (int i=0; i<MAX_KEYS; i++) {
+	for (int i=0; i<MAX_KEYS; ++i) {
 	    if (itemp->m_keys[i] != KEY_UNDEF) {
 		// We don't compare keys, only values
 		string val = m_indexValues[itemp->m_vals[i]];
@@ -274,15 +275,15 @@ public:
 
 	// Keys -> strings
 	string keys[MAX_KEYS];
-	for (int i=0; i<MAX_KEYS; i++) {
+	for (int i=0; i<MAX_KEYS; ++i) {
 	    if (ckeyps[i] && ckeyps[i][0]) {
 		keys[i] = ckeyps[i];
 	    }
 	}
 	// Ignore empty keys
-	for (int i=0; i<MAX_KEYS; i++) {
+	for (int i=0; i<MAX_KEYS; ++i) {
 	    if (keys[i]!="") {
-		for (int j=i+1; j<MAX_KEYS; j++) {
+		for (int j=i+1; j<MAX_KEYS; ++j) {
 		    if (keys[i] == keys[j]) {  // Duplicate key.  Keep the last one
 			keys[i] = "";
 			break;
@@ -292,7 +293,7 @@ public:
 	}
 	// Insert the values
 	int addKeynum=0;
-	for (int i=0; i<MAX_KEYS; i++) {
+	for (int i=0; i<MAX_KEYS; ++i) {
 	    const string key = keys[i];
 	    if (keys[i]!="") {
 		const string val = valps[i];
@@ -334,7 +335,7 @@ public:
 	    string hier;
 	    bool per_instance = false;
 
-	    for (int i=0; i<MAX_KEYS; i++) {
+	    for (int i=0; i<MAX_KEYS; ++i) {
 		if (itemp->m_keys[i] != KEY_UNDEF) {
 		    string key = VerilatedCovKey::shortKey(m_indexValues[itemp->m_keys[i]]);
 		    string val = m_indexValues[itemp->m_vals[i]];

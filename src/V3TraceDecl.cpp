@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -68,7 +68,6 @@ private:
 	// Return true if this shouldn't be traced
 	// See also similar rule in V3Coverage::varIgnoreToggle
 	AstVar* varp = nodep->varp();
-	string prettyName = varp->prettyName();
 	if (!varp->isTrace()) {
 	    return "Verilator trace_off";
 	}
@@ -76,6 +75,7 @@ private:
 	    return "Verilator cell trace_off";
 	}
 	else if (!v3Global.opt.traceUnderscore()) {
+	    string prettyName = varp->prettyName();
 	    if (prettyName.size()>=1 && prettyName[0] == '_')
 	        return "Leading underscore";
 	    if (prettyName.find("._") != string::npos)
@@ -137,7 +137,7 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstTopScope* nodep, AstNUser*) {
+    virtual void visit(AstTopScope* nodep) {
 	m_scopetopp = nodep->scopep();
 	// Make containers for TRACEDECLs first
 	m_initFuncp = newCFunc(AstCFuncType::TRACE_INIT, "traceInitThis", true);
@@ -148,7 +148,7 @@ private:
 	// And find variables
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstVarScope* nodep, AstNUser*) {
+    virtual void visit(AstVarScope* nodep) {
 	nodep->iterateChildren(*this);
 	// Avoid updating this if (), instead see varp->isTrace()
 	if (!nodep->varp()->isTemp() && !nodep->varp()->isFuncLocal()) {
@@ -183,17 +183,17 @@ private:
 	}
     }
     // VISITORS - Data types when tracing
-    virtual void visit(AstConstDType* nodep, AstNUser*) {
+    virtual void visit(AstConstDType* nodep) {
 	if (m_traVscp) {
 	    nodep->subDTypep()->skipRefp()->accept(*this);
 	}
     }
-    virtual void visit(AstRefDType* nodep, AstNUser*) {
+    virtual void visit(AstRefDType* nodep) {
 	if (m_traVscp) {
 	    nodep->subDTypep()->skipRefp()->accept(*this);
 	}
     }
-    virtual void visit(AstUnpackArrayDType* nodep, AstNUser*) {
+    virtual void visit(AstUnpackArrayDType* nodep) {
 	// Note more specific dtypes above
 	if (m_traVscp) {
 	    if ((int)nodep->arrayUnpackedElements() > v3Global.opt.traceMaxArray()) {
@@ -223,7 +223,7 @@ private:
 	    }
 	}
     }
-    virtual void visit(AstPackArrayDType* nodep, AstNUser*) {
+    virtual void visit(AstPackArrayDType* nodep) {
 	if (m_traVscp) {
 	    if (!v3Global.opt.traceStructs()) {
 		// Everything downstream is packed, so deal with as one trace unit
@@ -248,7 +248,7 @@ private:
 	    }
 	}
     }
-    virtual void visit(AstNodeClassDType* nodep, AstNUser*) {
+    virtual void visit(AstNodeClassDType* nodep) {
 	if (m_traVscp) {
 	    if (nodep->packed() && !v3Global.opt.traceStructs()) {
 		// Everything downstream is packed, so deal with as one trace unit
@@ -280,7 +280,7 @@ private:
 	    }
 	}
     }
-    virtual void visit(AstBasicDType* nodep, AstNUser*) {
+    virtual void visit(AstBasicDType* nodep) {
 	if (m_traVscp) {
 	    if (nodep->keyword()==AstBasicDTypeKwd::STRING) {
 		addIgnore("Unsupported: strings");
@@ -289,14 +289,14 @@ private:
 	    }
 	}
     }
-    virtual void visit(AstNodeDType* nodep, AstNUser*) {
+    virtual void visit(AstNodeDType* nodep) {
 	// Note more specific dtypes above
 	if (!m_traVscp) return;
 	addIgnore("Unsupported: data type");
     }
 
     //--------------------
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 

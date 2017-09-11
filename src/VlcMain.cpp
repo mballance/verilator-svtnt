@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -52,7 +52,7 @@ bool VlcOptions::onoff(const char* sw, const char* arg, bool& flag) {
     // if sw=="-no-arg", then return true (found it), and flag=false
     // if sw=="-noarg", then return true (found it), and flag=false
     // else return false
-    if (arg[0]!='-') v3fatalSrc("OnOff switches must have leading dash.\n");
+    if (arg[0]!='-') v3fatalSrc("OnOff switches must have leading dash.");
     if (0==strcmp(sw,arg)) { flag=true; return true; }
     else if (0==strncmp(sw,"-no",3) && (0==strcmp(sw+3,arg+1))) { flag=false; return true; }
     else if (0==strncmp(sw,"-no-",4) && (0==strcmp(sw+4,arg+1))) { flag=false; return true; }
@@ -123,7 +123,7 @@ void VlcOptions::showVersion(bool verbose) {
     if (!verbose) return;
 
     cout <<endl;
-    cout << "Copyright 2003-2016 by Wilson Snyder.  Verilator is free software; you can\n";
+    cout << "Copyright 2003-2017 by Wilson Snyder.  Verilator is free software; you can\n";
     cout << "redistribute it and/or modify the Verilator internals under the terms of\n";
     cout << "either the GNU Lesser General Public License Version 3 or the Perl Artistic\n";
     cout << "License Version 2.0.\n";

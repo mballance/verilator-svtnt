@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -32,7 +32,7 @@
 #include <algorithm>
 #include "V3Number.h"
 
-void test(string lhss, string op, string rhss, string exps) {
+void test(const string& lhss, const string& op, const string& rhss, const string& exps) {
     char* l1 = strdup(lhss.c_str());
     char* r1 = strdup(rhss.c_str());
     char* e1 = strdup(exps.c_str());
@@ -84,7 +84,7 @@ void test(string lhss, string op, string rhss, string exps) {
     V3Number ok (new FileLine("ck",__LINE__), 1);
     ok.opCaseEq(expnum,gotnum);
     if (ok.toUInt()!=1) {
-	v3fatalSrc("%Error:Test FAILED\n");
+	v3fatalSrc("%Error:Test FAILED");
     }
 }
 

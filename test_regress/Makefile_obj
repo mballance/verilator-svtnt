@@ -5,7 +5,7 @@
 #
 # This is executed in the object directory, and called by ../Makefile
 #
-# Copyright 2003-2016 by Wilson Snyder. This program is free software; you can
+# Copyright 2003-2017 by Wilson Snyder. This program is free software; you can
 # redistribute it and/or modify it under the terms of either the GNU
 # Lesser General Public License Version 3 or the Perl Artistic License
 # Version 2.0.
@@ -15,7 +15,7 @@
 default: $(VM_PREFIX)
 
 ifneq ($(MAKE_MAIN),0)
-   # Add main to classes rather then SP_SRCS to save a compiler run
+   # Add main to classes rather then SC_SRCS to save a compiler run
    VM_CLASSES += ${VM_PREFIX}__main $(VM_USER_CLASSES) $(VM_GLOBAL_FAST) $(VM_GLOBAL_SLOW)
 endif
 
@@ -38,7 +38,7 @@ CPPFLAGS += $(CPPFLAGS_ADD)
 #######################################################################
 # Linking final exe
 
-ifeq ($(VM_SP_OR_SC),1)
+ifeq ($(VM_SC),1)
    LIBS += $(SC_LIBS)
 endif
 

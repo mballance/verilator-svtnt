@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -91,7 +91,7 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	m_stmtCnt = 0;
 	m_modp = nodep;
 	m_modp->user2(CIL_MAYBE);
@@ -123,11 +123,11 @@ private:
 	nodep->user1(doit);
 	m_modp = NULL;
     }
-    virtual void visit(AstCell* nodep, AstNUser*) {
+    virtual void visit(AstCell* nodep) {
 	nodep->modp()->user3Inc();
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstPragma* nodep, AstNUser*) {
+    virtual void visit(AstPragma* nodep) {
 	if (nodep->pragType() == AstPragmaType::INLINE_MODULE) {
 	    //UINFO(0,"PRAG MARK "<<m_modp<<endl);
 	    if (!m_modp) {
@@ -147,21 +147,21 @@ private:
 	    nodep->iterateChildren(*this);
 	}
     }
-    virtual void visit(AstVarXRef* nodep, AstNUser*) {
+    virtual void visit(AstVarXRef* nodep) {
 	// Cleanup link until V3LinkDot can correct it
 	nodep->varp(NULL);
     }
-    virtual void visit(AstNodeFTaskRef* nodep, AstNUser*) {
+    virtual void visit(AstNodeFTaskRef* nodep) {
 	// Cleanup link until V3LinkDot can correct it
 	if (!nodep->packagep()) nodep->taskp(NULL);
 	nodep->iterateChildren(*this);
     }
     // Nop's to speed up the loop
-    virtual void visit(AstAlways* nodep, AstNUser*) {
+    virtual void visit(AstAlways* nodep) {
 	nodep->iterateChildren(*this);
 	m_stmtCnt++;
     }
-    virtual void visit(AstNodeAssign* nodep, AstNUser*) {
+    virtual void visit(AstNodeAssign* nodep) {
 	// Don't count assignments, as they'll likely flatten out
 	// Still need to iterate though to nullify VarXRefs
 	int oldcnt = m_stmtCnt;
@@ -170,7 +170,7 @@ private:
     }
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
 	m_stmtCnt++;
     }
@@ -207,13 +207,13 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstCell* nodep, AstNUser*) {
+    virtual void visit(AstCell* nodep) {
 	nodep->user4p(nodep->clonep());
     }
     // Accelerate
-    virtual void visit(AstNodeStmt* nodep, AstNUser*) {}
-    virtual void visit(AstNodeMath* nodep, AstNUser*) {}
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNodeStmt* nodep) {}
+    virtual void visit(AstNodeMath* nodep) {}
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 
@@ -248,7 +248,7 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstCellInline* nodep, AstNUser*) {
+    virtual void visit(AstCellInline* nodep) {
 	// Inlined cell under the inline cell, need to move to avoid conflicts
 	nodep->unlinkFrBack();
 	m_modp->addInlinesp(nodep);
@@ -259,25 +259,25 @@ private:
 	// Do CellInlines under this, but don't move them
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstCell* nodep, AstNUser*) {
+    virtual void visit(AstCell* nodep) {
 	// Cell under the inline cell, need to rename to avoid conflicts
 	string name = m_cellp->name() + "__DOT__" + nodep->name();
 	nodep->name(name);
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstModule* nodep, AstNUser*) {
+    virtual void visit(AstModule* nodep) {
 	m_renamedInterfaces.clear();
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstVar* nodep, AstNUser*) {
+    virtual void visit(AstVar* nodep) {
 	if (nodep->user2p()) {
 	    // Make an assignment, so we'll trace it properly
 	    // user2p is either a const or a var.
-	    AstConst*  exprconstp  = nodep->user2p()->castNode()->castConst();
-	    AstVarRef* exprvarrefp = nodep->user2p()->castNode()->castVarRef();
-	    UINFO(8,"connectto: "<<nodep->user2p()->castNode()<<endl);
+	    AstConst*  exprconstp  = nodep->user2p()->castConst();
+	    AstVarRef* exprvarrefp = nodep->user2p()->castVarRef();
+	    UINFO(8,"connectto: "<<nodep->user2p()<<endl);
 	    if (!exprconstp && !exprvarrefp) {
-		nodep->v3fatalSrc("Unknown interconnect type; pinReconnectSimple should have cleared up\n");
+		nodep->v3fatalSrc("Unknown interconnect type; pinReconnectSimple should have cleared up");
 	    }
 	    if (exprconstp) {
 		m_modp->addStmtp(new AstAssignW(nodep->fileline(),
@@ -319,7 +319,7 @@ private:
 	    ifacerefp->addNextHere(newdp);
 	    // Relink to point to newly cloned cell
 	    if (newdp->cellp()) {
-		if (AstCell* newcellp = newdp->cellp()->user4p()->castNode()->castCell()) {
+		if (AstCell* newcellp = newdp->cellp()->user4p()->castCell()) {
 		    newdp->cellp(newcellp);
 		    newdp->cellName(newcellp->name());
 		    // Tag the old ifacerefp to ensure it leaves no stale reference to the inlined cell.
@@ -337,22 +337,22 @@ private:
 	if (debug()>=9 && nodep->valuep()) { nodep->valuep()->dumpTree(cout,"varchangei:"); }
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstNodeFTask* nodep, AstNUser*) {
+    virtual void visit(AstNodeFTask* nodep) {
 	// Function under the inline cell, need to rename to avoid conflicts
 	nodep->name(m_cellp->name() + "__DOT__" + nodep->name());
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstTypedef* nodep, AstNUser*) {
+    virtual void visit(AstTypedef* nodep) {
 	// Typedef under the inline cell, need to rename to avoid conflicts
 	nodep->name(m_cellp->name() + "__DOT__" + nodep->name());
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstVarRef* nodep, AstNUser*) {
+    virtual void visit(AstVarRef* nodep) {
 	if (nodep->varp()->user2p()  // It's being converted to an alias.
 	    && !nodep->varp()->user3()
 	    && !nodep->backp()->castAssignAlias()) { 	// Don't constant propagate aliases (we just made)
-	    AstConst*  exprconstp  = nodep->varp()->user2p()->castNode()->castConst();
-	    AstVarRef* exprvarrefp = nodep->varp()->user2p()->castNode()->castVarRef();
+	    AstConst*  exprconstp  = nodep->varp()->user2p()->castConst();
+	    AstVarRef* exprvarrefp = nodep->varp()->user2p()->castVarRef();
 	    if (exprconstp) {
 		nodep->replaceWith(exprconstp->cloneTree(true));
 		nodep->deleteTree(); VL_DANGLING(nodep);
@@ -362,13 +362,13 @@ private:
 		nodep->varp( exprvarrefp->varp() );
 	    }
 	    else {
-		nodep->v3fatalSrc("Null connection?\n");
+		nodep->v3fatalSrc("Null connection?");
 	    }
 	}
 	nodep->name(nodep->varp()->name());
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstVarXRef* nodep, AstNUser*) {
+    virtual void visit(AstVarXRef* nodep) {
 	// Track what scope it was originally under so V3LinkDot can resolve it
 	string newname = m_cellp->name();
 	if (nodep->inlinedDots() != "") { newname += "." + nodep->inlinedDots(); }
@@ -378,7 +378,7 @@ private:
 	}
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstNodeFTaskRef* nodep, AstNUser*) {
+    virtual void visit(AstNodeFTaskRef* nodep) {
 	// Track what scope it was originally under so V3LinkDot can resolve it
 	string newname = m_cellp->name();
 	if (nodep->inlinedDots() != "") { newname += "." + nodep->inlinedDots(); }
@@ -391,9 +391,9 @@ private:
     }
 
     // Not needed, as V3LinkDot doesn't care about typedefs
-    //virtual void visit(AstRefDType* nodep, AstNUser*) {}
+    //virtual void visit(AstRefDType* nodep) {}
 
-    virtual void visit(AstScopeName* nodep, AstNUser*) {
+    virtual void visit(AstScopeName* nodep) {
 	// If there's a %m in the display text, we add a special node that will contain the name()
 	// Similar code in V3Begin
 	// To keep correct visual order, must add before other Text's
@@ -407,14 +407,14 @@ private:
 	if (afterp) nodep->scopeEntrp(afterp);
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstCoverDecl* nodep, AstNUser*) {
+    virtual void visit(AstCoverDecl* nodep) {
 	// Fix path in coverage statements
 	nodep->hier(m_cellp->prettyName()
 		    + (nodep->hier()!="" ? ".":"")
 		    + nodep->hier());
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 
@@ -457,11 +457,11 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNetlist* nodep, AstNUser*) {
+    virtual void visit(AstNetlist* nodep) {
 	// Iterate modules backwards, in bottom-up order.  Required!
 	nodep->iterateChildrenBackwards(*this);
     }
-    virtual void visit(AstIfaceRefDType* nodep, AstNUser*) {
+    virtual void visit(AstIfaceRefDType* nodep) {
 	if (nodep->user5()) {
 	    // The cell has been removed so let's make sure we don't leave a reference to it
 	    // This dtype may still be in use by the AstAssignVarScope created earlier
@@ -469,11 +469,11 @@ private:
 	    nodep->cellp(NULL);
 	}
     }
-    virtual void visit(AstNodeModule* nodep, AstNUser*) {
+    virtual void visit(AstNodeModule* nodep) {
 	m_modp = nodep;
 	nodep->iterateChildren(*this);
     }
-    virtual void visit(AstCell* nodep, AstNUser*) {
+    virtual void visit(AstCell* nodep) {
 	if (nodep->modp()->user1()) {  // Marked with inline request
 	    UINFO(5," Inline CELL   "<<nodep<<endl);
 	    UINFO(5,"   To MOD      "<<m_modp<<endl);
@@ -509,11 +509,12 @@ private:
 		// need an alias to trace correctly.  If tracing is disabled, we'll
 		// delete it in later optimizations.
 		AstVar* pinOldVarp = pinp->modVarp();
-		AstVar* pinNewVarp = pinOldVarp->clonep()->castVar();
+		AstVar* pinNewVarp = pinOldVarp->clonep();
+		if (!pinNewVarp) pinOldVarp->v3fatalSrc("Cloning failed");
 
 		AstNode* connectRefp = pinp->exprp();
 		if (!connectRefp->castConst() && !connectRefp->castVarRef()) {
-		    pinp->v3fatalSrc("Unknown interconnect type; pinReconnectSimple should have cleared up\n");
+		    pinp->v3fatalSrc("Unknown interconnect type; pinReconnectSimple should have cleared up");
 		}
 		if (pinNewVarp->isOutOnly() && connectRefp->castConst()) {
 		    pinp->v3error("Output port is connected to a constant pin, electrical short");
@@ -552,9 +553,9 @@ private:
     }
 
     //--------------------
-    virtual void visit(AstNodeMath* nodep, AstNUser*) {}  // Accelerate
-    virtual void visit(AstNodeStmt* nodep, AstNUser*) {}  // Accelerate
-    virtual void visit(AstNode* nodep, AstNUser*) {
+    virtual void visit(AstNodeMath* nodep) {}  // Accelerate
+    virtual void visit(AstNodeStmt* nodep) {}  // Accelerate
+    virtual void visit(AstNode* nodep) {
 	nodep->iterateChildren(*this);
     }
 

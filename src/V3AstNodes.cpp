@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -53,7 +53,7 @@ const char* AstNodeVarRef::broken() const {
 }
 
 void AstNodeVarRef::cloneRelink() {
-    if (m_varp && m_varp->clonep()) { m_varp = m_varp->clonep()->castVar(); }
+    if (m_varp && m_varp->clonep()) { m_varp = m_varp->clonep(); }
 }
 
 int AstNodeSel::bitConst() const {
@@ -140,6 +140,13 @@ AstNodeBiop* AstLte::newTyped(FileLine* fl, AstNode* lhsp, AstNode* rhsp) {
     }
 }
 
+AstNodeBiop* AstEqWild::newTyped(FileLine* fl, AstNode* lhsp, AstNode* rhsp) {
+    if (lhsp->isDouble() && rhsp->isDouble()) {
+	return new AstEqD(fl, lhsp, rhsp);
+    } else {
+	return new AstEqWild(fl, lhsp, rhsp);
+    }
+}
 
 bool AstVar::isSigPublic() const {
     return (m_sigPublic || (v3Global.opt.allPublic() && !isTemp() && !isGenVar()));
@@ -195,6 +202,8 @@ string AstVar::verilogKwd() const {
 	return "tri";
     } else if (varType()==AstVarType::WIRE) {
 	return "wire";
+    } else if (varType()==AstVarType::WREAL) {
+	return "wreal";
     } else {
 	return dtypep()->name();
     }
@@ -495,9 +504,9 @@ const char* AstScope::broken() const {
 }
 
 void AstScope::cloneRelink() {
-    if (m_aboveScopep && m_aboveScopep->clonep()) m_aboveScopep->clonep()->castScope();
-    if (m_aboveCellp && m_aboveCellp->clonep()) m_aboveCellp->clonep()->castCell();
-    if (m_modp && ((AstNode*)m_modp)->clonep()) ((AstNode*)m_modp)->clonep()->castNodeModule();
+    if (m_aboveScopep && m_aboveScopep->clonep()) m_aboveScopep->clonep();
+    if (m_aboveCellp && m_aboveCellp->clonep()) m_aboveCellp->clonep();
+    if (m_modp && ((AstNode*)m_modp)->clonep()) ((AstNode*)m_modp)->clonep();
 }
 
 string AstScope::nameDotless() const {

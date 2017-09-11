@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2016 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2017 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -183,14 +183,10 @@ void V3Options::addCppFile(const string& filename) {
     }
 }
 void V3Options::addCFlags(const string& filename) {
-    if (m_cFlags.find(filename) == m_cFlags.end()) {
-	m_cFlags.insert(filename);
-    }
+    m_cFlags.push_back(filename);
 }
 void V3Options::addLdLibs(const string& filename) {
-    if (m_ldLibs.find(filename) == m_ldLibs.end()) {
-	m_ldLibs.insert(filename);
-    }
+    m_ldLibs.push_back(filename);
 }
 void V3Options::addFuture(const string& flag) {
     if (m_futures.find(flag) == m_futures.end()) {
@@ -229,6 +225,10 @@ void V3Options::addVFile(const string& filename) {
     // in a specific order and multiple of them.
     m_vFiles.push_back(filename);
 }
+void V3Options::addForceInc(const string& filename) {
+    m_forceIncs.push_back(filename);
+}
+
 void V3Options::addArg(const string& arg) {
     m_impp->m_allArgs.push_back(arg);
 }
@@ -335,7 +335,7 @@ string V3Options::filePathCheckOneDir(const string& modname, const string& dirna
     return "";
 }
 
-string V3Options::filePath (FileLine* fl, const string& modname,
+string V3Options::filePath (FileLine* fl, const string& modname, const string& lastpath,
 			    const string& errmsg) {   // Error prefix or "" to suppress error
     // Find a filename to read the specified module name,
     // using the incdir and libext's.
@@ -349,6 +349,11 @@ string V3Options::filePath (FileLine* fl, const string& modname,
 	 dirIter!=m_impp->m_incDirFallbacks.end(); ++dirIter) {
 	string exists = filePathCheckOneDir(modname, *dirIter);
 	if (exists!="") return exists;
+    }
+
+    if (m_relativeIncludes) {
+	string exists = filePathCheckOneDir(modname, lastpath);
+	if (exists!="") return V3Os::filenameRealPath(exists);
     }
 
     // Warn and return not found
@@ -486,52 +491,6 @@ string V3Options::getenvSYSTEMC_LIBDIR() {
     return var;
 }
 
-string V3Options::getenvSYSTEMPERL() {
-    // Must be careful to set SYSTEMPERL_INCLUDE first else we'd setenv
-    // SYSTEMPERL which would override a DEFENVed SYSTEMPERL_INCLUDE.
-    V3Options::getenvSYSTEMPERL_INCLUDE();
-    return V3Options::getenvSYSTEMPERLGuts();
-}
-
-string V3Options::getenvSYSTEMPERLGuts() {
-    // Get SYSTEMPERL when SYSTEMPERL_INCLUDE has already been tested
-    string var = V3Os::getenvStr("SYSTEMPERL","");
-    if (var == "" && string(DEFENV_SYSTEMPERL) != "") {
-	var = DEFENV_SYSTEMPERL;
-	V3Os::setenvStr("SYSTEMPERL", var, "Hardcoded at build time");
-    }
-    return var;
-}
-
-string V3Options::getenvSYSTEMPERL_INCLUDE() {
-    string var = V3Os::getenvStr("SYSTEMPERL_INCLUDE","");
-    if (var == "") {
-	string sp_src = V3Options::getenvSYSTEMPERLGuts()+"/src";
-	if (V3Options::fileStatNormal(sp_src+"/systemperl.h")) {
- 	    var = sp_src;
-	    V3Os::setenvStr ("SYSTEMPERL_INCLUDE", var, "From $SYSTEMPERL/src");
-	} else if (string(DEFENV_SYSTEMPERL_INCLUDE) != "") {
-	    // Note if SYSTEMPERL is DEFENVed, then SYSTEMPERL_INCLUDE is also DEFENVed
-	    // So we don't need to sweat testing DEFENV_SYSTEMPERL also
-	    var = DEFENV_SYSTEMPERL_INCLUDE;
-	    V3Os::setenvStr("SYSTEMPERL_INCLUDE", var, "Hardcoded at build time");
-	}
-    }
-    // Only correct or check it if we really need the value
-    if (v3Global.opt.usingSystemPerlLibs()) {
-	// We warn about $SYSTEMPERL instead of _INCLUDE since that's more likely
-	// what users will want to set.
-	if (var == "") {
-	    v3fatal("Need $SYSTEMPERL and $SYSTEMPERL_INCLUDE in environment for --sp or --coverage\n"
-		    "Probably System-Perl isn't installed, see http://www.veripool.org/systemperl\n");
-	}
-	else if (var != "" && !V3Options::fileStatNormal(var+"/systemperl.h")) {
-	    v3fatal("Neither $SYSTEMPERL nor $SYSTEMPERL_INCLUDE environment vars to point to System-Perl kit: "<<var<<endl);
-	}
-    }
-    return var;
-}
-
 string V3Options::getenvVERILATOR_ROOT() {
     string var = V3Os::getenvStr("VERILATOR_ROOT","");
     if (var == "" && string(DEFENV_VERILATOR_ROOT) != "") {
@@ -554,8 +513,9 @@ string V3Options::version() {
 }
 
 void V3Options::throwSigsegv() {
-    // cppcheck-suppress nullPointer
-    char* zp=NULL; *zp=0;
+#if !(defined(VL_CPPCHECK) || defined(__clang_analyzer__))
+    char* zp=NULL; *zp=0; // Intentional core dump, ignore warnings here
+#endif
 }
 
 //######################################################################
@@ -602,7 +562,7 @@ bool V3Options::onoff(const char* sw, const char* arg, bool& flag) {
     // if sw=="-no-arg", then return true (found it), and flag=false
     // if sw=="-noarg", then return true (found it), and flag=false
     // else return false
-    if (arg[0]!='-') v3fatalSrc("OnOff switches must have leading dash.\n");
+    if (arg[0]!='-') v3fatalSrc("OnOff switches must have leading dash");
     if (0==strcmp(sw,arg)) { flag=true; return true; }
     else if (0==strncmp(sw,"-no",3) && (0==strcmp(sw+3,arg+1))) { flag=false; return true; }
     else if (0==strncmp(sw,"-no-",4) && (0==strcmp(sw+4,arg+1))) { flag=false; return true; }
@@ -677,7 +637,7 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
 	    else if ( onoff   (sw, "-autoflush", flag/*ref*/) )	{ m_autoflush = flag; }
 	    else if ( onoff   (sw, "-bbox-sys", flag/*ref*/) )	{ m_bboxSys = flag; }
 	    else if ( onoff   (sw, "-bbox-unsup", flag/*ref*/) ) { m_bboxUnsup = flag; }
-	    else if ( !strcmp (sw, "-cc") )			{ m_outFormatOk = true; m_systemC = false; m_systemPerl = false; }
+	    else if ( !strcmp (sw, "-cc") )			{ m_outFormatOk = true; m_systemC = false; }
 	    else if ( onoff   (sw, "-cdc", flag/*ref*/) )	{ m_cdc = flag; }
 	    else if ( onoff   (sw, "-coverage", flag/*ref*/) )	{ coverage(flag); }
 	    else if ( onoff   (sw, "-coverage-line", flag/*ref*/) ){ m_coverageLine = flag; }
@@ -689,6 +649,7 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
 	    else if ( onoff   (sw, "-debug-check", flag/*ref*/) ){ m_debugCheck = flag; }
 	    else if ( !strcmp (sw, "-debug-sigsegv") )		{ throwSigsegv(); }  // Undocumented, see also --debug-abort
 	    else if ( !strcmp (sw, "-debug-fatalsrc") )		{ v3fatalSrc("--debug-fatal-src"); }  // Undocumented, see also --debug-abort
+	    else if ( onoff   (sw, "-decoration", flag/*ref*/) ) { m_decoration = flag; }
 	    else if ( onoff   (sw, "-dump-tree", flag/*ref*/) )	{ m_dumpTree = flag ? 3 : 0; }  // Also see --dump-treei
 	    else if ( onoff   (sw, "-exe", flag/*ref*/) )	{ m_exe = flag; }
 	    else if ( onoff   (sw, "-ignc", flag/*ref*/) )	{ m_ignc = flag; }
@@ -705,10 +666,10 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
 	    else if ( onoff   (sw, "-public", flag/*ref*/) )		{ m_public = flag; }
             else if ( !strncmp(sw, "-pvalue+", strlen("-pvalue+")))	{ addParameter(string(sw+strlen("-pvalue+")), false); }
 	    else if ( onoff   (sw, "-report-unoptflat", flag/*ref*/) )	{ m_reportUnoptflat = flag; }
+	    else if ( onoff   (sw, "-relative-includes", flag/*ref*/) )	{ m_relativeIncludes = flag; }
 	    else if ( onoff   (sw, "-savable", flag/*ref*/) )		{ m_savable = flag; }
-	    else if ( !strcmp (sw, "-sc") )				{ m_outFormatOk = true; m_systemC = true; m_systemPerl = false; }
+	    else if ( !strcmp (sw, "-sc") )				{ m_outFormatOk = true; m_systemC = true; }
 	    else if ( onoff   (sw, "-skip-identical", flag/*ref*/) )	{ m_skipIdentical = flag; }
-	    else if ( !strcmp (sw, "-sp-deprecated") )			{ m_outFormatOk = true; m_systemC = true; m_systemPerl = true; } // Undocumented, old
 	    else if ( onoff   (sw, "-stats", flag/*ref*/) )		{ m_stats = flag; }
 	    else if ( onoff   (sw, "-stats-vars", flag/*ref*/) )	{ m_statsVars = flag; m_stats |= flag; }
 	    else if ( !strcmp (sw, "-sv") )				{ m_defaultLanguage = V3LangCode::L1800_2005; }
@@ -794,11 +755,15 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
 		shift;
 		V3Error::errorLimit(atoi(argv[i]));
 	    }
+	    else if ( !strcmp (sw, "-FI") && (i+1)<argc ) {
+		shift;
+		addForceInc(parseFileArg(optdir, string (argv[i])));
+	    }
 	    else if ( !strncmp (sw, "-G", strlen("-G"))) {
-		addParameter (string (sw+strlen("-G")), false);
+		addParameter(string (sw+strlen("-G")), false);
 	    }
 	    else if ( !strncmp (sw, "-I", 2)) {
-		addIncDirUser (parseFileArg(optdir, string (sw+strlen("-I"))));
+		addIncDirUser(parseFileArg(optdir, string (sw+strlen("-I"))));
 	    }
 	    else if ( !strcmp (sw, "-if-depth") && (i+1)<argc ) {
 		shift;
@@ -986,6 +951,7 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
 	    }
 	    else if ( !strcmp (sw, "-pins-bv") && (i+1)<argc ) {
 		shift; m_pinsBv = atoi(argv[i]);
+		if (m_pinsBv > 65) fl->v3fatal("--pins-bv maximum is 65: "<<argv[i]);
 	    }
 	    else if ( !strcmp (sw, "-pipe-filter") && (i+1)<argc ) {
 		shift; m_pipeFilter = argv[i];
@@ -1151,7 +1117,7 @@ void V3Options::showVersion(bool verbose) {
     if (!verbose) return;
 
     cout <<endl;
-    cout << "Copyright 2003-2016 by Wilson Snyder.  Verilator is free software; you can\n";
+    cout << "Copyright 2003-2017 by Wilson Snyder.  Verilator is free software; you can\n";
     cout << "redistribute it and/or modify the Verilator internals under the terms of\n";
     cout << "either the GNU Lesser General Public License Version 3 or the Perl Artistic\n";
     cout << "License Version 2.0.\n";
@@ -1166,8 +1132,6 @@ void V3Options::showVersion(bool verbose) {
     cout << "    SYSTEMC_ARCH       = " << DEFENV_SYSTEMC_ARCH<<endl;
     cout << "    SYSTEMC_INCLUDE    = " << DEFENV_SYSTEMC_INCLUDE<<endl;
     cout << "    SYSTEMC_LIBDIR     = " << DEFENV_SYSTEMC_LIBDIR<<endl;
-    cout << "    SYSTEMPERL         = " << DEFENV_SYSTEMPERL<<endl;
-    cout << "    SYSTEMPERL_INCLUDE = " << DEFENV_SYSTEMPERL_INCLUDE<<endl;
     cout << "    VERILATOR_ROOT     = " << DEFENV_VERILATOR_ROOT<<endl;
 
     cout <<endl;
@@ -1177,8 +1141,6 @@ void V3Options::showVersion(bool verbose) {
     cout << "    SYSTEMC_ARCH       = " << V3Os::getenvStr("SYSTEMC_ARCH","")<<endl;
     cout << "    SYSTEMC_INCLUDE    = " << V3Os::getenvStr("SYSTEMC_INCLUDE","")<<endl;
     cout << "    SYSTEMC_LIBDIR     = " << V3Os::getenvStr("SYSTEMC_LIBDIR","")<<endl;
-    cout << "    SYSTEMPERL         = " << V3Os::getenvStr("SYSTEMPERL","")<<endl;
-    cout << "    SYSTEMPERL_INCLUDE = " << V3Os::getenvStr("SYSTEMPERL_INCLUDE","")<<endl;
     cout << "    VERILATOR_ROOT     = " << V3Os::getenvStr("VERILATOR_ROOT","")<<endl;
     cout << "    VERILATOR_BIN      = " << V3Os::getenvStr("VERILATOR_BIN","")<<endl;  // wrapper uses this
 }
@@ -1198,6 +1160,7 @@ V3Options::V3Options() {
     m_coverageUnderscore = false;
     m_coverageUser = false;
     m_debugCheck = false;
+    m_decoration = true;
     m_exe = false;
     m_ignc = false;
     m_inhibitSim = false;
@@ -1215,12 +1178,12 @@ V3Options::V3Options() {
     m_preprocNoLine = false;
     m_public = false;
     m_reportUnoptflat = false;
+    m_relativeIncludes = false;
     m_savable = false;
     m_skipIdentical = true;
     m_stats = false;
     m_statsVars = false;
     m_systemC = false;
-    m_systemPerl = false;
     m_trace = false;
     m_traceDups = false;
     m_traceParams = true;

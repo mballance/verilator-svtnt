@@ -6,7 +6,7 @@
  *
  **************************************************************************
  *
- * Copyright 2003-2016 by Wilson Snyder.  Verilator is free software;
+ * Copyright 2003-2017 by Wilson Snyder.  Verilator is free software;
  * you can redistribute it and/or modify it under the terms of either the
  * GNU Lesser General Public License Version 3 or the Perl Artistic License
  * Version 2.0.
@@ -248,6 +248,7 @@ vnum	{vnum1}|{vnum2}|{vnum3}|{vnum4}|{vnum5}
   "casex"		{ FL; return yCASEX; }
   "casez"		{ FL; return yCASEZ; }
   "cmos"		{ FL; return yCMOS; }
+  "deassign"		{ FL; return yDEASSIGN; }
   "default"		{ FL; return yDEFAULT; }
   "defparam"		{ FL; return yDEFPARAM; }
   "disable"		{ FL; return yDISABLE; }
@@ -262,6 +263,7 @@ vnum	{vnum1}|{vnum2}|{vnum3}|{vnum4}|{vnum5}
   "endtable"		{ yyerrorf("Syntax error: ENDTABLE outside of TABLE"); }
   "endtask"		{ FL; return yENDTASK; }
   "for"			{ FL; return yFOR; }
+  "foreach"		{ FL; return yFOREACH; }
   "forever"		{ FL; return yFOREVER; }
   "function"		{ FL; return yFUNCTION; }
   "if"			{ FL; return yIF; }
@@ -329,7 +331,6 @@ vnum	{vnum1}|{vnum2}|{vnum3}|{vnum4}|{vnum5}
   "$writeh"		{ FL; RETURN_BBOX_SYS_OR_MSG("Unsupported: Use $write with %%x format instead: %s",yytext); }
   "$writeo"		{ FL; RETURN_BBOX_SYS_OR_MSG("Unsupported: Use $write with %%o format instead: %s",yytext); }
   /*     Generic unsupported warnings */
-  "deassign"		{ yyerrorf("Unsupported: Verilog 1995 reserved word not implemented: %s",yytext); }
   "event"		{ yyerrorf("Unsupported: Verilog 1995 reserved word not implemented: %s",yytext); }
   "force"		{ yyerrorf("Unsupported: Verilog 1995 reserved word not implemented: %s",yytext); }
   "fork"		{ yyerrorf("Unsupported: Verilog 1995 reserved word not implemented: %s",yytext); }
@@ -487,7 +488,6 @@ vnum	{vnum1}|{vnum2}|{vnum3}|{vnum4}|{vnum5}
   "extends"		{ yyerrorf("Unsupported: SystemVerilog 2005 reserved word not implemented: %s",yytext); }
   "extern"		{ yyerrorf("Unsupported: SystemVerilog 2005 reserved word not implemented: %s",yytext); }
   "first_match"		{ yyerrorf("Unsupported: SystemVerilog 2005 reserved word not implemented: %s",yytext); }
-  "foreach"		{ yyerrorf("Unsupported: SystemVerilog 2005 reserved word not implemented: %s",yytext); }
   "forkjoin"		{ yyerrorf("Unsupported: SystemVerilog 2005 reserved word not implemented: %s",yytext); }
   "ignore_bins"		{ yyerrorf("Unsupported: SystemVerilog 2005 reserved word not implemented: %s",yytext); }
   "illegal_bins"	{ yyerrorf("Unsupported: SystemVerilog 2005 reserved word not implemented: %s",yytext); }
@@ -822,7 +822,7 @@ vnum	{vnum1}|{vnum2}|{vnum3}|{vnum4}|{vnum5}
 				  // Push rest for later parse
 				  PARSEP->unputString(yytext+shortlen, yyleng-shortlen);
 				  FL; LINECHECKS(yytext,shortlen);
-				  // Return is stuff before '
+				  // Return is stuff before the tick
 				  yytext[shortlen] = '\0';
 				  yylval.nump = PARSEP->newNumber(yylval.fl, (char*)yytext);
 				  return yaINTNUM;
@@ -874,7 +874,7 @@ vnum	{vnum1}|{vnum2}|{vnum3}|{vnum4}|{vnum5}
   /* Attributes */
   /* Note simulators vary in support for "(* /_*something*_/ foo*)" where _ doesn't exist */
 <V95,V01,V05,VA5,S05,S09,S12,SAX>{
-    "(*"({ws}|{crnl})*({id}|{escid})	{ yymore(); yy_push_state(ATTRMODE); }	// Doesn't match (*), but (* attr_spec
+    "(*"({ws}|{crnl})*({id}|{escid})	{ yymore(); yy_push_state(ATTRMODE); }	/* Doesn't match (*), but (* attr_spec */
 }
 
   /************************************************************************/
